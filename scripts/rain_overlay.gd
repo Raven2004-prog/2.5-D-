@@ -26,9 +26,9 @@ func pulse_lightning(amount: float = 0.32) -> void:
 	flash_amount = maxf(flash_amount, amount)
 
 
-func begin_return() -> void:
-	return_distortion = 1.0
-	flash_amount = 0.55
+func begin_return(reduce_flash: bool = false) -> void:
+	return_distortion = 0.52 if reduce_flash else 1.0
+	flash_amount = 0.12 if reduce_flash else 0.55
 
 
 func _draw() -> void:
@@ -59,4 +59,3 @@ func _draw() -> void:
 			draw_rect(Rect2(0, band_y, viewport_size.x, viewport_size.y / float(bands) * 0.6), Color(0.38, 0.75, 0.78, band_alpha), true)
 	if flash_amount > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, viewport_size), Color(0.92, 0.82, 0.62, flash_amount), true)
-

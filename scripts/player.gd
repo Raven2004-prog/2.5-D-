@@ -107,7 +107,7 @@ func _try_shove() -> void:
 	_shove_flash = 1.0
 	stamina = maxf(0.0, stamina - 14.0)
 	stamina_changed.emit(stamina, MAX_STAMINA)
-	shove_emitted.emit(global_position + facing * 24.0, facing)
+	shove_emitted.emit(global_position, facing)
 	queue_redraw()
 
 

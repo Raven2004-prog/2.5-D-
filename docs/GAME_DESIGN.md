@@ -20,7 +20,7 @@ A beautiful, humane fantasy investigation game where knowledge persists but rela
 4. **Three Hands on the Knife** — investigate the signal, water gate, and granary; hidden assumptions damage present-line trust.
 5. **No One Owes Him Yesterday** — disclose facts as facts, propose risks, and let each ally decide.
 6. **Six People Break the Pattern** — survive the coordinated operation while Piri, Brann, Nessa, Kesh, Lysa, and Mara own their choices.
-7. **Bound for Lysford** — tribunal outcome, G-1, and a complete ending with a forward hook.
+7. **Bound for Lysford** — tribunal outcome, one stable surviving account, and a complete ending with a forward hook.
 
 ## Player verbs
 
@@ -59,5 +59,4 @@ Authored catastrophe beats trigger the Return. Ordinary stealth mistakes cost he
 
 ## Accessibility
 
-Reduced motion, reduced flash, high contrast, scalable interface, captions, keyboard/controller input, and forgiving interaction radii are first-class settings. The story treats panic, dissociation, and self-destructive choices seriously without graphic death imagery.
-
+Reduced motion, reduced flash, viewport-scaled interface, full dialogue captions, keyboard/mouse input, and forgiving interaction radii are built in. The story treats panic, dissociation, and self-destructive choices seriously without graphic death imagery.

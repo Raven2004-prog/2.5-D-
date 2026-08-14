@@ -23,6 +23,7 @@ const FOUNDATION_NAMES := {
 var game_state: AshGameState
 var world_map: GreyfenMap
 var player: PlayerActor
+var camera: Camera2D
 var ui: GameUI
 var rain: RainOverlay
 
@@ -37,6 +38,8 @@ var _finale_remaining := 0.0
 var _finale_events: Dictionary = {}
 var _stage_before_dialogue := ""
 var _started := false
+var _outside_defense_zone := false
+var _rescue_in_progress := false
 
 
 func configure(state: AshGameState) -> void:
@@ -44,8 +47,12 @@ func configure(state: AshGameState) -> void:
 
 
 func _ready() -> void:
+	y_sort_enabled = true
 	if game_state == null:
 		game_state = AshGameState.new()
+	var saved_return: Variant = game_state.current_line.get("pending_return", {})
+	if saved_return is Dictionary:
+		_pending_return = (saved_return as Dictionary).duplicate(true)
 	_build_world()
 	call_deferred("_begin_current_stage")
 
@@ -57,7 +64,7 @@ func _process(delta: float) -> void:
 	if _interaction_tick <= 0.0:
 		_interaction_tick = 0.08
 		_update_nearest_interactable()
-	if _stage() == "finale_defense" and not ui.dialogue_open and not ui.folio_open:
+	if _stage() == "finale_defense" and not ui.dialogue_open and not ui.folio_open and not _rescue_in_progress:
 		_tick_finale(delta)
 
 
@@ -89,7 +96,7 @@ func _build_world() -> void:
 	player.shove_emitted.connect(_on_player_shove)
 	add_child(player)
 
-	var camera := Camera2D.new()
+	camera = Camera2D.new()
 	camera.name = "Camera"
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 6.5
@@ -117,20 +124,50 @@ func _build_world() -> void:
 	ui.dialogue_choice.connect(_on_dialogue_choice)
 	ui.folio_closed.connect(_on_folio_closed)
 	ui.pause_requested.connect(_on_pause_requested)
+	ui.resume_requested.connect(_resume_game)
+	ui.title_requested.connect(_return_to_title)
+	ui.setting_changed.connect(_on_setting_changed)
 	add_child(ui)
+	ui.sync_settings(game_state.settings)
+	camera.position_smoothing_enabled = not bool(game_state.settings.get("reduce_motion", false))
 	ui.set_condition(player.health, PlayerActor.MAX_HEALTH, player.stamina, PlayerActor.MAX_STAMINA)
 	_refresh_world_state()
 
 
 func _build_npcs() -> void:
-	_add_npc("mara", "Mara", "Warden of Greyfen", Color("58636a"), Color("d49a45"), world_map.get_landmark("mara"))
-	_add_npc("tamsin", "Tamsin", "Captain", Color("394950"), Color("91aeb5"), world_map.get_landmark("tamsin"))
-	_add_npc("lysa", "Lysa", "Courier", Color("5c4e66"), Color("c77955"), world_map.get_landmark("lysa"))
-	_add_npc("nessa", "Nessa", "Surgeon", Color("45625f"), Color("87b8a2"), world_map.get_landmark("nessa"))
-	_add_npc("brann", "Brann", "Gate commander", Color("5a5147"), Color("c3a15e"), world_map.get_landmark("brann"))
-	_add_npc("kesh", "Kesh", "Aruun envoy", Color("514b61"), Color("db7045"), world_map.get_landmark("kesh"), true)
-	_add_npc("piri", "Piri", "Signal apprentice", Color("4b5c68"), Color("dfa750"), world_map.get_landmark("piri"), true)
-	_add_npc("tomas", "Tomas", "Quartermaster", Color("675b4a"), Color("c7834d"), world_map.get_landmark("tomas"))
+	_add_npc("mara", _known_name("mara", "Mara", "Armored warden"), "Warden of Greyfen", Color("58636a"), Color("d49a45"), world_map.get_landmark("mara"))
+	_add_npc("tamsin", _known_name("tamsin", "Tamsin", "Greyfen captain"), "Captain", Color("394950"), Color("91aeb5"), world_map.get_landmark("tamsin"))
+	var lysa_name := "Lysa" if game_state.knows("lysa_name") else "Fleeing courier"
+	_add_npc("lysa", lysa_name, "Courier", Color("5c4e66"), Color("c77955"), world_map.get_landmark("lysa"))
+	_add_npc("nessa", _known_name("nessa", "Nessa", "Field surgeon"), "Surgeon", Color("45625f"), Color("87b8a2"), world_map.get_landmark("nessa"))
+	_add_npc("brann", _known_name("brann", "Brann", "Gate commander"), "Gate commander", Color("5a5147"), Color("c3a15e"), world_map.get_landmark("brann"))
+	_add_npc("kesh", _known_name("kesh", "Kesh", "Horned envoy"), "Aruun envoy", Color("514b61"), Color("db7045"), world_map.get_landmark("kesh"), true)
+	# Piri's mixed heritage remains visually ambiguous while she is living under false papers.
+	_add_npc("piri", _known_name("piri", "Piri", "Signal apprentice"), "Signal apprentice", Color("4b5c68"), Color("dfa750"), world_map.get_landmark("piri"), false)
+	_add_npc("tomas", _known_name("tomas", "Tomas", "Quartermaster"), "Quartermaster", Color("675b4a"), Color("c7834d"), world_map.get_landmark("tomas"))
+
+
+func _known_name(id: String, known: String, unknown: String) -> String:
+	return known if game_state.knows("%s_name" % id) else unknown
+
+
+func _reveal_npc_identity(id: String) -> void:
+	if not npcs.has(id):
+		return
+	var identities := {
+		"mara": ["Mara", "Warden of Greyfen"],
+		"tamsin": ["Tamsin", "Captain"],
+		"lysa": ["Lysa", "Courier"],
+		"nessa": ["Nessa", "Surgeon"],
+		"brann": ["Brann", "Gate commander"],
+		"kesh": ["Kesh", "Aruun envoy"],
+		"piri": ["Piri", "Signal apprentice"],
+		"tomas": ["Tomas", "Quartermaster"],
+	}
+	var identity: Array = identities.get(id, [id.capitalize(), "Greyfen"])
+	var npc := npcs[id] as NpcActor
+	game_state.remember("%s_name" % id)
+	npc.configure(id, str(identity[0]), str(identity[1]), npc.body_color, npc.accent_color, npc.is_daevar)
 
 
 func _add_npc(id: String, name_text: String, role_text: String, color: Color, accent: Color, at: Vector2, daevar: bool = false) -> void:
@@ -158,7 +195,7 @@ func _add_hotspot(id: String, label_text: String, prompt: String, color: Color, 
 
 func _build_agents() -> void:
 	_add_agent("West-road observer", PackedVector2Array([Vector2(360, 730), Vector2(560, 820), Vector2(680, 735), Vector2(520, 570)]))
-	_add_agent("Granary watch", PackedVector2Array([Vector2(1160, 610), Vector2(1440, 660), Vector2(1540, 600), Vector2(1280, 690)]))
+	_add_agent("Granary watch", PackedVector2Array([Vector2(1160, 610), Vector2(1440, 660), Vector2(1600, 650), Vector2(1280, 690)]))
 	_add_agent("Tunnel buyer", PackedVector2Array([Vector2(980, 970), Vector2(1180, 1000), Vector2(1270, 900), Vector2(1040, 850)]))
 	_add_agent("Signal runner", PackedVector2Array([Vector2(875, 420), Vector2(1120, 375), Vector2(1160, 560), Vector2(920, 575)]))
 
@@ -169,11 +206,21 @@ func _add_agent(name_text: String, points: PackedVector2Array) -> void:
 	agent.surrendered.connect(_on_agent_surrendered)
 	agents.append(agent)
 	add_child(agent)
+	var saved_states: Dictionary = game_state.current_line.get("agent_states", {})
+	if saved_states.get(name_text) is Dictionary:
+		agent.restore_save_state(saved_states[name_text])
 
 
 func _begin_current_stage() -> void:
 	_started = true
 	var stage := _stage()
+	var pending_story := str(game_state.current_line.get("pending_story", ""))
+	if not pending_story.is_empty():
+		_apply_resume_header(stage)
+		var pending_choices: Array = game_state.current_line.get("pending_choices", [])
+		_show_story(pending_story, pending_choices.duplicate(true))
+		_refresh_world_state()
+		return
 	match stage:
 		"arrival":
 			ui.set_chapter("Chapter 1", "The Blink")
@@ -196,14 +243,49 @@ func _begin_current_stage() -> void:
 			ui.set_clock("BEFORE THE HORN", "FINAL OPERATION")
 			if stage == "finale_defense":
 				_finale_remaining = maxf(5.0, float(game_state.current_line.get("finale_time", 36.0)))
+				_finale_events.clear()
+				for event_id in game_state.current_line.get("finale_events", []):
+					_finale_events[str(event_id)] = true
 				_activate_finale_agents()
+			elif game_state.has_flag("tomas_surrendered"):
+				_show_story("tomas_accepts")
 			else:
 				_set_objective_for_stage()
+		"finale_resolved":
+			ui.set_chapter("Chapter 12", "The Laughing Saint")
+			ui.set_clock("AFTER THE HORN", "GREYFEN HOLDS")
+			_show_story("corvin_lens")
+		"tribunal":
+			ui.set_chapter("Chapter 13", "One Surviving Account")
+			ui.set_clock("DAWN", "GREYFEN TRIBUNAL")
+			_show_story("tribunal")
 		"complete":
 			_show_story("ending")
 		_:
 			_set_objective_for_stage()
 	_refresh_world_state()
+
+
+func _apply_resume_header(stage: String) -> void:
+	match stage:
+		"arrival", "reach_mara", "baseline_find_granary":
+			ui.set_chapter("Chapter 1", "The Blink")
+			ui.set_clock("4:20 PM", "THE FIRST RAIN")
+		"return_one", "one_fuse", "one_fuse_report":
+			ui.set_chapter("Chapter 4", "The Same Rain")
+			ui.set_clock("4:20 PM", "PASS TWO")
+		"return_two", "wrong_hero_report":
+			ui.set_chapter("Chapter 6", "Three Hands on the Knife")
+			ui.set_clock("4:20 PM", "PASS THREE")
+		"return_three", "mara_ready", "compact_offer":
+			ui.set_chapter("Chapter 10", "No One Owes Him Yesterday")
+			ui.set_clock("4:20 PM", "THE SURVIVING LINE")
+		"finale_to_tomas", "finale_defense", "finale_resolved":
+			ui.set_chapter("Chapter 12", "Six People Break the Pattern")
+			ui.set_clock("BEFORE THE HORN", "FINAL OPERATION")
+		"tribunal", "complete":
+			ui.set_chapter("Chapter 13", "One Surviving Account")
+			ui.set_clock("DAWN", "GREYFEN TRIBUNAL")
 
 
 func _stage() -> String:
@@ -222,9 +304,9 @@ func _set_objective_for_stage() -> void:
 		"arrival":
 			ui.set_objective("Find the fleeing courier", "A girl in a red scarf crossed the hollow ahead.")
 		"reach_mara":
-			ui.set_objective("Bring the bloodied token to Greyfen", "Mara is below the Grey Keep. Follow the amber ward-lights.")
+			ui.set_objective("Bring the bloodied token to Greyfen", "Find the armored warden below the Grey Keep. Follow the amber ward-lights.")
 		"baseline_find_granary":
-			ui.set_objective("Reach Refuge Row", "Someone is moving powder beneath the granary.")
+			ui.set_objective("Reach Refuge Row", "Mara's guards are moving you toward the crowded refugee enclosure.")
 		"return_one":
 			ui.set_objective("Make Brann listen", "One prediction must be specific enough to verify.")
 		"one_fuse":
@@ -237,13 +319,18 @@ func _set_objective_for_stage() -> void:
 			ui.set_objective("Give Mara your complete plan", "You know the routes. You have not asked who will risk them.")
 		"return_three":
 			var ready := game_state.contribution_count()
-			ui.set_objective("Build a plan people choose", "%d/3 present facts · %d/5 allies ready before Mara." % [game_state.present_foundation_count(), mini(ready, 5)])
+			if game_state.all_foundations_present() and ready == 4 and not game_state.has_physical_evidence("tunnel"):
+				ui.set_objective("Trace the tunnel buyer for Lysa", "Focus reveals drainage prints south of Nessa's clinic.")
+			else:
+				ui.set_objective("Build a plan people choose", "%d/3 present facts · %d/5 allies ready before Mara." % [game_state.present_foundation_count(), mini(ready, 5)])
 		"mara_ready":
 			ui.set_objective("Tell Mara what is fact—and what is fear", "No one owes you a relationship from an erased line.")
+		"compact_offer":
+			ui.set_objective("Choose whether to enter the Compact", "Mara has risked her claim. Evan is still free to walk away.")
 		"finale_to_tomas":
 			ui.set_objective("Reach Tomas beneath the granary", "The coerced sapper can still choose to stop.")
 		"finale_defense":
-			ui.set_objective("Keep Tomas alive", "Hold long enough for six independent choices to break the pattern.")
+			ui.set_objective("Hold the granary line", "Stay near the ward-lights and occupy the attackers while six independent choices take effect.")
 		"tribunal":
 			ui.set_objective("Give one surviving account", "The dead and the living both deserve accurate names.")
 
@@ -299,6 +386,10 @@ func _interact() -> void:
 
 
 func _interact_npc(npc: NpcActor) -> void:
+	if not npc.available:
+		return
+	if not (npc.npc_id == "lysa" and _stage() == "arrival"):
+		_reveal_npc_identity(npc.npc_id)
 	match npc.npc_id:
 		"lysa": _talk_lysa()
 		"mara": _talk_mara()
@@ -318,7 +409,7 @@ func _talk_lysa() -> void:
 	else:
 		_say("lysa_bark", "Lysa", "Greyfen courier", [
 			"You have the expression of a man arguing with a map. Maps usually win.",
-			"If you need a route, ask. If you already know one you should not, ask more carefully."
+			"If you need a route, ask. If you already know one you should not, explain before you follow me."
 		])
 
 
@@ -334,7 +425,10 @@ func _talk_mara() -> void:
 				"phantom_knife", "return_two"
 			)
 		"wrong_hero_report":
-			_show_story("wrong_hero")
+			_show_story("third_plan", [
+				{"id": "assign_ghost_route", "text": "Send Lysa down the erased route; keep Brann at the gate."},
+				{"id": "hide_risk", "text": "Hide Lysa's worst risk; deny Brann's requested withdrawal."}
+			])
 		"mara_ready":
 			_show_story("mara_disclosure", [
 				{"id": "separate_fact", "text": "Separate fact from inference. Ask what risk she accepts."},
@@ -348,8 +442,17 @@ func _talk_mara() -> void:
 				_say("mara_status", "Mara", "Warden of Greyfen", [
 					"Fact first. Then tell me who has seen it in this line. I will not stake Greyfen on a memory no one else can examine."
 				])
+		"compact_offer":
+			_show_compact_choice()
 		_:
-			_say("mara_bark", "Mara", "Warden of Greyfen", ["Tell me what fails first. Fear can wait until people are moving."])
+			_say("mara_bark", "Mara", "Warden of Greyfen", ["Greyfen is under restricted command. State your name, your evidence, and what you need—in that order."])
+
+
+func _show_compact_choice() -> void:
+	_show_story("evan_compact", [
+		{"id": "accept_witness", "text": "Accept truthful service and shared protection."},
+		{"id": "ask_time", "text": "Step away. Keep the right to refuse."}
+	])
 
 
 func _talk_brann() -> void:
@@ -358,7 +461,7 @@ func _talk_brann() -> void:
 	elif _stage() == "return_three" and game_state.has_physical_evidence("gate") and not game_state.has_contribution("brann"):
 		_show_story("brann_contribution")
 	else:
-		_say("brann_bark", "Brann", "Gate commander", ["Two royal orders contradicting each other before supper. Untidy."])
+		_say("brann_bark", "Brann", "Gate commander", ["West gate is restricted. If you have business inside, find a witness with a name the guard recognizes."])
 
 
 func _talk_piri() -> void:
@@ -372,7 +475,7 @@ func _talk_nessa() -> void:
 	if _stage() == "return_three" and game_state.has_physical_evidence("powder") and not game_state.has_contribution("nessa"):
 		_show_story("nessa_contribution")
 	else:
-		_say("nessa_bark", "Nessa", "Border surgeon", ["Feet first, prophecy second. Bleeding is not an argument."])
+		_say("nessa_bark", "Nessa", "Border surgeon", ["You are shaking and you have no shoes. Sit if you need treatment; leave if you only need an audience."])
 
 
 func _talk_kesh() -> void:
@@ -384,17 +487,20 @@ func _talk_kesh() -> void:
 
 func _talk_tamsin() -> void:
 	_say("tamsin_bark", "Tamsin", "Mara's captain", [
-		"Who told you? Who benefits? Why now?",
-		"One prediction earns attention, Hale. Trust costs more."
+		"Stop there. Name and business.",
+		"One useful answer earns attention. Trust costs more."
 	])
 
 
 func _talk_tomas() -> void:
-	if _stage() == "finale_to_tomas" and not game_state.has_flag("tomas_surrendered"):
-		_show_story("tomas_surrender", [
-			{"id": "offer_exit", "text": "Name the harm. Offer him a way to surrender."},
-			{"id": "threaten", "text": "Tell him you know where his captors keep his husband."}
-		])
+	if _stage() == "finale_to_tomas":
+		if game_state.has_flag("tomas_surrendered"):
+			_show_story("tomas_accepts")
+		else:
+			_show_story("tomas_surrender", [
+				{"id": "offer_exit", "text": "Name the harm. Offer him a way to surrender."},
+				{"id": "threaten", "text": "Tell him you know where his captors keep his husband."}
+			])
 	elif _stage() == "finale_defense":
 		_say("tomas_hold", "Tomas", "Coerced quartermaster", ["Six powder kegs. Two keys. Thirty breaths until they realize I have stopped. I am sorry—that is not enough. I know."])
 	else:
@@ -443,7 +549,9 @@ func _inspect_foundation(id: String, dialogue_id: String) -> void:
 
 func _on_dialogue_finished(id: String) -> void:
 	player.controls_enabled = true
-	if _pending_return.get("dialogue_id", "") == id:
+	game_state.current_line["pending_story"] = ""
+	game_state.current_line["pending_choices"] = []
+	if not _pending_return.is_empty() and _pending_return.get("dialogue_id", "") == id:
 		_perform_return()
 		return
 	match id:
@@ -454,9 +562,17 @@ func _on_dialogue_finished(id: String) -> void:
 			_set_objective_for_stage()
 		"lysa_token":
 			game_state.add_inventory("token")
-			game_state.remember("token", "Lysa pressed a bloodied courier token into my hand.")
+			game_state.remember("token", "The fleeing courier pressed a bloodied token into my hand.")
 			_set_stage("reach_mara")
 		"mara_arrest":
+			game_state.remember("lysa_name", "Mara named the fleeing courier: Lysa.")
+			_reveal_npc_identity("lysa")
+			_reveal_npc_identity("nessa")
+			_show_story("nessa_treatment")
+		"nessa_treatment":
+			_reveal_npc_identity("tamsin")
+			_show_story("tamsin_interrogation")
+		"tamsin_interrogation":
 			_set_stage("baseline_find_granary")
 		"powder_discovery":
 			if _stage() == "baseline_find_granary":
@@ -492,8 +608,11 @@ func _on_dialogue_finished(id: String) -> void:
 		"kesh_contribution": _accept_contribution("kesh", "Kesh chose to bring the refugees inside Greyfen's wall.")
 		"lysa_contribution": _accept_contribution("lysa", "Lysa chose to expose the tunnel buyer on her own route.")
 		"ash_compact":
-			game_state.remember("ash_witness", "Mara staked her claim and public liability on Evan and Kesh's testimony.")
-			_set_stage("finale_to_tomas")
+			_show_compact_choice()
+		"transfer_order":
+			_show_story("ash_compact")
+		"tomas_accepts":
+			_begin_finale_defense()
 		"corvin_lens":
 			_set_stage("tribunal")
 			_show_story("tribunal")
@@ -509,11 +628,29 @@ func _on_dialogue_finished(id: String) -> void:
 
 func _on_dialogue_choice(id: String, choice_id: String) -> void:
 	player.controls_enabled = true
-	if id == "mara_disclosure":
-		if choice_id == "separate_fact":
+	game_state.current_line["pending_story"] = ""
+	game_state.current_line["pending_choices"] = []
+	if id == "third_plan":
+		game_state.add_flag("third_plan_%s" % choice_id)
+		if choice_id == "assign_ghost_route":
+			ui.notify("A remembered survival is not present consent.", Color("d17a64"), 3.2)
+		else:
+			ui.notify("Withholding danger makes the choice Evan's, not Lysa's.", Color("d17a64"), 3.2)
+		_show_story("wrong_hero")
+	elif id == "evan_compact":
+		if choice_id == "accept_witness":
 			game_state.accept_contribution("mara")
+			game_state.set_npc_tag("mara", "accepted_legal_risk")
+			game_state.add_flag("evan_accepted_compact")
+			game_state.remember("ash_witness", "Mara staked her claim and Evan freely accepted truthful service under shared protection.")
+			_set_stage("finale_to_tomas")
+		else:
+			_set_stage("compact_offer")
+			ui.notify("Mara leaves the choice open. The operation waits for Evan's answer.", Color("d7b56e"), 3.6)
+	elif id == "mara_disclosure":
+		if choice_id == "separate_fact":
 			game_state.set_npc_tag("mara", "accepted_disclosure")
-			_show_story("ash_compact")
+			_show_story("transfer_order")
 		else:
 			game_state.set_npc_tag("mara", "refused_control")
 			ui.notify("Mara refuses the plan, not the warning.", Color("d17a64"), 3.4)
@@ -525,7 +662,7 @@ func _on_dialogue_choice(id: String, choice_id: String) -> void:
 			game_state.add_flag("tomas_surrendered")
 			game_state.set_npc_tag("tomas", "surrendered_without_violence")
 			ui.notify("Tomas sets down both keys.", Color("85c2b2"), 3.0)
-			_begin_finale_defense()
+			_show_story("tomas_accepts")
 		else:
 			game_state.set_npc_tag("tomas", "frightened_by_threat")
 			ui.notify("Tomas freezes. The threat made his captors feel closer.", Color("d17a64"), 3.4)
@@ -541,9 +678,12 @@ func _show_story(id: String, choices: Array = []) -> void:
 	var data: Dictionary = Content.get_dialogue(id)
 	if data.is_empty():
 		data = {"speaker": "Narrator", "role": "Greyfen", "pages": PackedStringArray([id.replace("_", " ").capitalize()])}
-	data["portrait"] = _portrait_id(str(data.get("speaker", "narrator")))
+	data["portrait"] = "lysa" if id == "lysa_token" else _portrait_id(str(data.get("speaker", "narrator")))
 	_stage_before_dialogue = _stage()
+	game_state.current_line["pending_story"] = id
+	game_state.current_line["pending_choices"] = choices.duplicate(true)
 	player.controls_enabled = false
+	_play_audio("warning" if id.begins_with("catastrophe") else "focus")
 	ui.show_dialogue(id, data, choices)
 
 
@@ -575,12 +715,14 @@ func _trigger_authored_return(dialogue_id: String, cause: String, echo: String, 
 		"trauma": trauma,
 		"next_stage": next_stage,
 	}
+	game_state.current_line["pending_return"] = _pending_return.duplicate(true)
 	_show_story(dialogue_id)
 
 
 func _perform_return() -> void:
 	player.controls_enabled = false
-	rain.begin_return()
+	_play_audio("warning", -0.12)
+	rain.begin_return(bool(game_state.settings.get("reduce_flash", false)))
 	game_state.record_authored_return(
 		str(_pending_return["cause"]), str(_pending_return["echo"]),
 		str(_pending_return["trauma"]), str(_pending_return["next_stage"])
@@ -632,7 +774,7 @@ func _first_five_ready() -> bool:
 
 
 func _npc_has_available_action(id: String) -> bool:
-	if _stage() != "return_three" and _stage() != "mara_ready":
+	if _stage() not in ["return_three", "mara_ready", "compact_offer"]:
 		return false
 	match id:
 		"nessa": return game_state.has_physical_evidence("powder") and not game_state.has_contribution("nessa")
@@ -656,25 +798,39 @@ func _refresh_world_state() -> void:
 		)
 		hotspot.set_discovered(game_state.has_physical_evidence(id))
 	for id in npcs:
-		(npcs[id] as NpcActor).set_contribution_ready(game_state.has_contribution(id))
-	var discovered := {}
+		var npc := npcs[id] as NpcActor
+		npc.available = true
+		if stage == "arrival":
+			npc.available = id == "lysa"
+		elif stage == "reach_mara":
+			npc.available = id == "mara"
+		npc.set_contribution_ready(game_state.has_contribution(id))
+	var retained := {}
+	var present := {}
 	var resolved := {}
 	for id in AshGameState.FOUNDATION_IDS:
-		discovered[id] = game_state.knows(id)
-	resolved["powder"] = game_state.has_contribution("nessa") and game_state.has_contribution("lysa")
-	resolved["signal"] = game_state.has_contribution("piri")
-	resolved["gate"] = game_state.has_contribution("brann") and game_state.has_contribution("kesh")
-	ui.set_threads(discovered, resolved)
+		retained[id] = game_state.knows(id)
+		present[id] = game_state.has_physical_evidence(id)
+	# A proposed contribution is not marked resolved until it actually happens.
+	resolved["powder"] = game_state.has_flag("executed_powder")
+	resolved["signal"] = game_state.has_flag("executed_signal")
+	resolved["gate"] = game_state.has_flag("executed_gate")
+	ui.set_threads(retained, present, resolved)
 	_set_objective_for_stage()
 
 
 func _begin_finale_defense() -> void:
-	_set_stage("finale_defense")
+	game_state.current_line["stage"] = "finale_defense"
+	game_state.add_flag("executed_powder")
 	_finale_remaining = 38.0
+	_outside_defense_zone = false
 	game_state.current_line["finale_time"] = _finale_remaining
 	_finale_events.clear()
+	game_state.current_line["finale_events"] = []
+	_refresh_world_state()
 	_activate_finale_agents()
 	ui.notify("The counterfeit alarm begins. Hold the granary.", Color("e5b15a"), 3.2)
+	_autosave()
 
 
 func _activate_finale_agents() -> void:
@@ -686,13 +842,24 @@ func _activate_finale_agents() -> void:
 
 
 func _tick_finale(delta: float) -> void:
+	var in_defense_zone := player.global_position.distance_to(world_map.get_landmark("granary")) <= 470.0
+	if not in_defense_zone:
+		if not _outside_defense_zone:
+			ui.notify("The attackers are leaving the granary line. Return to the amber ward-lights.", Color("d17a64"), 3.4)
+		_outside_defense_zone = true
+		ui.set_clock("%02d BREATHS" % int(ceil(_finale_remaining)), "LINE UNHELD")
+		return
+	if _outside_defense_zone:
+		ui.notify("The granary line holds again.", Color("85c2b2"), 2.0)
+	_outside_defense_zone = false
 	_finale_remaining = maxf(0.0, _finale_remaining - delta)
 	game_state.current_line["finale_time"] = _finale_remaining
 	ui.set_clock("%02d BREATHS" % int(ceil(_finale_remaining)), "FINAL OPERATION")
 	_finale_event_at(31.0, "piri", "Piri answers the false horn with the true cadence.")
-	_finale_event_at(25.0, "brann", "Brann tears the forged withdrawal order in front of the gate company.")
-	_finale_event_at(18.0, "nessa", "Nessa's clinic is already empty. Kesh brings Refuge Row inside the wall.")
-	_finale_event_at(11.0, "lysa", "Lysa names the tunnel buyer. Soldiers turn on the surviving agents.")
+	_finale_event_at(26.0, "brann", "Brann tears the forged withdrawal order in front of the gate company.")
+	_finale_event_at(21.0, "nessa", "Nessa's clinic is already empty when the second charge is found.")
+	_finale_event_at(16.0, "kesh", "Kesh brings Refuge Row inside the wall under its own wardens.")
+	_finale_event_at(10.0, "lysa", "Lysa names the tunnel buyer. Soldiers turn on the surviving agents.")
 	_finale_event_at(5.0, "mara", "Mara opens the water gate herself. The jammed mechanism gives way.")
 	if _finale_remaining <= 0.0:
 		_finish_finale()
@@ -701,10 +868,20 @@ func _tick_finale(delta: float) -> void:
 func _finale_event_at(threshold: float, id: String, text: String) -> void:
 	if _finale_remaining <= threshold and not _finale_events.has(id):
 		_finale_events[id] = true
+		var saved_events: Array = game_state.current_line.get("finale_events", [])
+		if not saved_events.has(id):
+			saved_events.append(id)
+		game_state.current_line["finale_events"] = saved_events
+		if id == "brann":
+			game_state.add_flag("executed_signal")
+		elif id == "mara":
+			game_state.add_flag("executed_gate")
 		ui.notify(text, Color("85c2b2"), 3.2)
 		if id == "lysa":
 			for agent in agents:
 				agent.suspicion = maxf(0.0, agent.suspicion - 0.4)
+		_refresh_world_state()
+		_autosave()
 
 
 func _finish_finale() -> void:
@@ -730,17 +907,33 @@ func _on_player_shove(origin: Vector2, direction: Vector2) -> void:
 
 func _on_agent_surrendered(_agent: EnemyAgent) -> void:
 	ui.notify("An agent drops their weapon and withdraws.", Color("85c2b2"), 2.0)
+	_autosave()
 
 
 func _on_player_defeated(_cause: String) -> void:
-	ui.notify("Tamsin drags Evan clear. This is injury, not a Return.", Color("d17a64"), 3.5)
+	if _rescue_in_progress:
+		return
+	_rescue_in_progress = true
+	var defeat_stage := _stage()
+	var rescue_text := "Nessa's orderlies pull Evan from the road. This is injury, not a Return."
+	if defeat_stage in ["arrival", "reach_mara", "baseline_find_granary"]:
+		rescue_text = "A Greyfen patrol hauls the shoeless stranger clear. This is injury, not a Return."
+	elif defeat_stage == "finale_defense":
+		rescue_text = "Tamsin drags Evan behind the granary wall. This is injury, not a Return."
+	ui.notify(rescue_text, Color("d17a64"), 3.5)
 	await get_tree().create_timer(1.1).timeout
 	var rescue_position := world_map.get_landmark("nessa") + Vector2(0, 45)
-	if _stage() in ["arrival", "reach_mara", "baseline_find_granary"]:
+	if defeat_stage in ["arrival", "reach_mara", "baseline_find_granary"]:
 		rescue_position = world_map.get_landmark("west_gate")
+	elif defeat_stage == "finale_defense":
+		rescue_position = world_map.get_landmark("granary") + Vector2(0, 90)
 	player.reset_body(rescue_position, int(game_state.retained.get("soul_scars", 0)))
-	if _stage() == "finale_defense":
-		_finale_remaining = maxf(8.0, _finale_remaining - 5.0)
+	if defeat_stage == "finale_defense":
+		_finale_remaining = minf(45.0, _finale_remaining + 6.0)
+		game_state.current_line["finale_time"] = _finale_remaining
+		ui.notify("The rescue costs the operation six breaths.", Color("d17a64"), 2.8)
+	_rescue_in_progress = false
+	_autosave()
 
 
 func _on_health_changed(value: float, maximum: float) -> void:
@@ -755,6 +948,7 @@ func _on_stamina_changed(value: float, maximum: float) -> void:
 
 func _on_focus_changed(active: bool) -> void:
 	if active:
+		_play_audio("focus")
 		ui.notify("Focus: noticed routes and contradictions are highlighted.", Color("76bec1"), 1.8)
 
 
@@ -784,11 +978,12 @@ func _on_folio_closed() -> void:
 
 
 func _folio_entry_text(id: String) -> String:
-	if not Content.FOLIO_ENTRIES.has(id):
+	var mapped_id := str({"signal": "false_horn", "gate": "water_gate"}.get(id, id))
+	if not Content.FOLIO_ENTRIES.has(mapped_id):
 		return ""
-	var value = Content.FOLIO_ENTRIES[id]
+	var value = Content.FOLIO_ENTRIES[mapped_id]
 	if value is Dictionary:
-		return "%s — %s" % [str(value.get("title", id.capitalize())), str(value.get("text", ""))]
+		return "%s — %s" % [str(value.get("title", mapped_id.capitalize())), str(value.get("body", value.get("text", "")))]
 	return str(value)
 
 
@@ -805,16 +1000,56 @@ func _contribution_text(id: String) -> String:
 
 
 func _on_pause_requested() -> void:
-	ui.notify("Progress autosaved. Press Escape again from the title menu to quit.", Color("d7b56e"), 2.5)
 	_autosave()
+	ui.sync_settings(game_state.settings)
+	ui.show_pause()
+	get_tree().paused = true
+
+
+func _on_setting_changed(key: String, enabled: bool) -> void:
+	game_state.settings[key] = enabled
+	if key == "reduce_motion":
+		rain.reduced_motion = enabled
+		camera.position_smoothing_enabled = not enabled
+	elif key == "master_audio":
+		var audio_manager := get_node_or_null("/root/AudioManager")
+		if audio_manager and audio_manager.has_method("set_master_enabled"):
+			audio_manager.call("set_master_enabled", enabled)
+	ui.sync_settings(game_state.settings)
+	_autosave()
+
+
+func _resume_game() -> void:
+	get_tree().paused = false
+	if ui:
+		ui.hide_pause()
+
+
+func _return_to_title() -> void:
+	_autosave()
+	get_tree().paused = false
+	return_to_title_requested.emit()
 
 
 func _autosave() -> void:
 	if player:
 		game_state.current_line["player_position"] = [player.global_position.x, player.global_position.y]
+	_capture_agent_states()
 	autosave_requested.emit(game_state.to_save_data())
-	if ui:
-		ui.show_saved()
+
+
+func snapshot_data() -> Dictionary:
+	if player:
+		game_state.current_line["player_position"] = [player.global_position.x, player.global_position.y]
+	_capture_agent_states()
+	return game_state.to_save_data()
+
+
+func _capture_agent_states() -> void:
+	var saved_states := {}
+	for agent in agents:
+		saved_states[agent.agent_name] = agent.to_save_state()
+	game_state.current_line["agent_states"] = saved_states
 
 
 func _saved_or_anchor_position() -> Vector2:
@@ -822,3 +1057,9 @@ func _saved_or_anchor_position() -> Vector2:
 	if saved is Array and saved.size() >= 2:
 		return Vector2(float(saved[0]), float(saved[1]))
 	return Vector2(180, 875)
+
+
+func _play_audio(cue: StringName, pitch_offset: float = 0.0) -> void:
+	var audio_manager := get_node_or_null("/root/AudioManager")
+	if audio_manager and audio_manager.has_method("play_ui"):
+		audio_manager.call("play_ui", cue, pitch_offset)

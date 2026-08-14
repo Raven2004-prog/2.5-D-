@@ -81,6 +81,16 @@ func _test_save_roundtrip() -> void:
 	var restored: Dictionary = saves.continue_game()
 	_expect(restored == updated_state, "latest save data survives a roundtrip")
 	_expect(not FileAccess.file_exists(TEST_SAVE_PATH + ".bak"), "successful save leaves no backup artifact")
+	var malformed_file := FileAccess.open(TEST_SAVE_PATH, FileAccess.WRITE)
+	if malformed_file:
+		malformed_file.store_string(JSON.stringify({
+			"format": "ash_at_greyfen_save",
+			"version": [],
+			"data": {},
+		}))
+		malformed_file.close()
+	_expect(saves.continue_game().is_empty(), "a non-numeric envelope version is rejected safely")
+	_expect(saves.last_error.contains("version"), "a damaged envelope reports a useful version error")
 	_expect(saves.reset_save(), "reset removes save data")
 	_expect(not saves.can_continue(), "continue is unavailable after reset")
 	saves.free()

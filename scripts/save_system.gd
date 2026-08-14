@@ -133,7 +133,14 @@ func continue_game(path_override: String = "") -> Dictionary:
 	if str(envelope.get("format", "")) != SAVE_FORMAT:
 		_set_error(resolved_path, "Unrecognized save format.")
 		return {}
-	var version := int(envelope.get("version", -1))
+	var version_value: Variant = envelope.get("version", -1)
+	if not _is_finite_number(version_value):
+		_set_error(resolved_path, "Save version must be a number.")
+		return {}
+	var version := float(version_value)
+	if version != floorf(version):
+		_set_error(resolved_path, "Save version must be a whole number.")
+		return {}
 	if version > CURRENT_SAVE_VERSION:
 		_set_error(resolved_path, "Save was created by a newer game version.")
 		return {}
@@ -149,6 +156,11 @@ func continue_game(path_override: String = "") -> Dictionary:
 	var restored: Dictionary = data
 	save_loaded.emit(restored)
 	return restored
+
+
+func _is_finite_number(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value))
 
 
 func reset_save(path_override: String = "") -> bool:

@@ -27,6 +27,10 @@ var _search_time := 0.0
 var _attack_cooldown := 0.0
 var _stun_time := 0.0
 var _flash := 0.0
+var _steer_time := 0.0
+var _steer_direction := Vector2.ZERO
+var _desired_direction := Vector2.ZERO
+var _strike_windup := 0.0
 
 
 func _ready() -> void:
@@ -56,6 +60,8 @@ func configure(new_target: PlayerActor, points: PackedVector2Array, name_text: S
 func _physics_process(delta: float) -> void:
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 	_flash = maxf(0.0, _flash - delta * 5.0)
+	_steer_time = maxf(0.0, _steer_time - delta)
+	_strike_windup = maxf(0.0, _strike_windup - delta)
 	if state == State.SURRENDERED:
 		velocity = Vector2.ZERO
 		return
@@ -83,10 +89,13 @@ func _physics_process(delta: float) -> void:
 			_set_state(State.NOTICE)
 		if suspicion >= 1.0 and state != State.CHASE and state != State.STRIKE:
 			_set_state(State.CHASE)
-	elif can_hear and state in [State.PATROL, State.RETURN]:
+	elif can_hear and state not in [State.STRIKE, State.STUNNED, State.SURRENDERED]:
 		last_known_position = target.global_position
 		suspicion = maxf(suspicion, 0.42)
-		_set_state(State.INVESTIGATE)
+		if state == State.CHASE:
+			_lost_time = 0.0
+		elif state != State.INVESTIGATE:
+			_set_state(State.INVESTIGATE)
 	elif state in [State.PATROL, State.NOTICE, State.RETURN]:
 		suspicion = maxf(0.0, suspicion - delta * 0.38)
 
@@ -114,9 +123,9 @@ func _physics_process(delta: float) -> void:
 		State.STRIKE:
 			velocity = Vector2.ZERO
 			facing = global_position.direction_to(target.global_position)
-			if distance > 42.0:
+			if distance > 42.0 or not can_see:
 				_set_state(State.CHASE)
-			elif _attack_cooldown <= 0.0:
+			elif _strike_windup <= 0.0 and _attack_cooldown <= 0.0:
 				_attack_cooldown = 1.0
 				_flash = 1.0
 				target.take_damage(attack_damage, agent_name)
@@ -136,6 +145,12 @@ func _physics_process(delta: float) -> void:
 					_set_state(State.PATROL)
 
 	move_and_slide()
+	if velocity.length_squared() > 100.0 and get_slide_collision_count() > 0 and _steer_time <= 0.0:
+		var collision := get_slide_collision(0)
+		var tangent_a := collision.get_normal().orthogonal().normalized()
+		var tangent_b := -tangent_a
+		_steer_direction = tangent_a if tangent_a.dot(_desired_direction) >= tangent_b.dot(_desired_direction) else tangent_b
+		_steer_time = 0.58
 	queue_redraw()
 
 
@@ -150,7 +165,8 @@ func _follow_patrol(_delta: float) -> void:
 
 
 func _move_toward(point: Vector2, speed: float) -> void:
-	var direction := global_position.direction_to(point)
+	_desired_direction = global_position.direction_to(point)
+	var direction := _steer_direction if _steer_time > 0.0 else _desired_direction
 	if direction.length_squared() > 0.01:
 		facing = direction
 	velocity = direction * speed
@@ -171,7 +187,15 @@ func _can_see_target() -> bool:
 
 
 func receive_shove(origin: Vector2, direction: Vector2) -> bool:
-	if state == State.SURRENDERED or global_position.distance_to(origin) > 48.0:
+	var shove_direction := direction.normalized()
+	var offset := global_position - origin
+	if state == State.SURRENDERED or offset.length() > 58.0:
+		return false
+	if offset.length_squared() > 1.0 and shove_direction.dot(offset.normalized()) < cos(0.72):
+		return false
+	var query := PhysicsRayQueryParameters2D.create(origin, global_position, 1)
+	query.exclude = [get_rid()]
+	if not get_world_2d().direct_space_state.intersect_ray(query).is_empty():
 		return false
 	resolve -= 36.0
 	velocity = direction.normalized() * 215.0
@@ -192,6 +216,10 @@ func reset_agent() -> void:
 	resolve = 100.0
 	suspicion = 0.0
 	_lost_time = 0.0
+	_steer_time = 0.0
+	_steer_direction = Vector2.ZERO
+	_desired_direction = Vector2.ZERO
+	_strike_windup = 0.0
 	collision_layer = 4
 	collision_mask = 1 | 2 | 4
 	_patrol_index = 0
@@ -205,6 +233,8 @@ func _set_state(next_state: int) -> void:
 	if state == next_state:
 		return
 	state = next_state
+	if state == State.STRIKE:
+		_strike_windup = 0.32
 	state_changed.emit(self, state)
 	queue_redraw()
 
@@ -226,11 +256,44 @@ func _draw() -> void:
 		var cone_color := Color(0.86, 0.65, 0.31, 0.055)
 		if state in [State.CHASE, State.STRIKE]:
 			cone_color = Color(0.94, 0.22, 0.18, 0.12)
-		var left := facing.rotated(-vision_half_angle) * minf(vision_range, 135.0)
-		var right := facing.rotated(vision_half_angle) * minf(vision_range, 135.0)
+		var left := facing.rotated(-vision_half_angle) * vision_range
+		var right := facing.rotated(vision_half_angle) * vision_range
 		draw_colored_polygon(PackedVector2Array([Vector2.ZERO, left, right]), cone_color)
 	if suspicion > 0.05 and state != State.SURRENDERED:
 		draw_arc(Vector2(0, -35), 7.0, -PI * 0.5, -PI * 0.5 + TAU * suspicion, 20, Color("e8aa4b") if suspicion < 1.0 else Color("e7533f"), 2.2, true)
+	if state == State.STRIKE and _strike_windup > 0.0:
+		draw_arc(Vector2.ZERO, 24.0, -PI * 0.8, PI * 0.8, 24, Color(0.95, 0.33, 0.22, 0.82), 2.8, true)
+
+
+func to_save_state() -> Dictionary:
+	return {
+		"state": state,
+		"resolve": resolve,
+		"suspicion": suspicion,
+		"position": [global_position.x, global_position.y],
+		"last_known": [last_known_position.x, last_known_position.y],
+		"patrol_index": _patrol_index,
+		"facing": [facing.x, facing.y],
+	}
+
+
+func restore_save_state(data: Dictionary) -> void:
+	resolve = clampf(float(data.get("resolve", 100.0)), 0.0, 100.0)
+	suspicion = clampf(float(data.get("suspicion", 0.0)), 0.0, 1.0)
+	state = clampi(int(data.get("state", State.PATROL)), State.PATROL, State.SURRENDERED)
+	_patrol_index = clampi(int(data.get("patrol_index", 0)), 0, maxi(patrol_points.size() - 1, 0))
+	var saved_position: Variant = data.get("position", [])
+	if saved_position is Array and saved_position.size() >= 2:
+		global_position = Vector2(float(saved_position[0]), float(saved_position[1]))
+	var saved_last_known: Variant = data.get("last_known", [])
+	if saved_last_known is Array and saved_last_known.size() >= 2:
+		last_known_position = Vector2(float(saved_last_known[0]), float(saved_last_known[1]))
+	var saved_facing: Variant = data.get("facing", [])
+	if saved_facing is Array and saved_facing.size() >= 2:
+		facing = Vector2(float(saved_facing[0]), float(saved_facing[1])).normalized()
+	collision_layer = 0 if state == State.SURRENDERED else 4
+	collision_mask = 1 if state == State.SURRENDERED else 1 | 2 | 4
+	queue_redraw()
 
 
 func _draw_ellipse_shape(center: Vector2, radius: Vector2, color: Color) -> void:

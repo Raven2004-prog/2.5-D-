@@ -24,21 +24,39 @@ static var DIALOGUES: Dictionary = {
 		]),
 	},
 	"lysa_token": {
-		"speaker": "Lysa Fen",
-		"role": "Greyfen courier",
+		"speaker": "Fleeing courier",
+		"role": "Speech without meaning",
 		"pages": PackedStringArray([
-			"Wrong road, longshanks. Move!",
-			"Take this. No, don't admire it—hide it. Blood is already a poor disguise.",
-			"If the riders ask, you found nothing. Especially me."
+			"A girl collides with him and shouts a sentence he cannot understand. The urgency lands first: Move. Danger. Now.",
+			"She presses a bloodied token into his hand. Hide this. Riders must not see.",
+			"She points toward the black-stone fort, vanishes into the reeds, and leaves her name untranslated."
 		]),
 	},
 	"mara_arrest": {
 		"speaker": "Princess Mara Veyre",
 		"role": "Warden of Greyfen",
 		"pages": PackedStringArray([
-			"Strange clothes. No papers. A dead courier's seal in your hand. You understand why my guards are not feeling charitable.",
-			"Your feet will be treated. You will be questioned, watched, and kept alive while your answers remain useful.",
-			"Now tell me why my private field cipher crossed half the March to find you."
+			"Strange clothes. No papers. A murdered royal courier's seal in your hand. You understand why my guards are not feeling charitable.",
+			"Your feet will be treated. You will be questioned and watched. I do not execute a mystery because frightened guards want a simple answer.",
+			"The girl who gave it to you was Lysa. She was carrying another courier's seal. Now tell me why my private field cipher crossed half the March to find you."
+		]),
+	},
+	"nessa_treatment": {
+		"speaker": "Nessa Reed",
+		"role": "Greyfen surgeon",
+		"pages": PackedStringArray([
+			"Sit. Feet first, impossible story second. Bleeding is not an argument.",
+			"The cuts say you crossed the hollow without shoes. The shaking says something followed you farther than the riders did.",
+			"I can bind one of those. For the other, breathe until the room has edges again."
+		]),
+	},
+	"tamsin_interrogation": {
+		"speaker": "Tamsin Ward",
+		"role": "Mara's captain",
+		"pages": PackedStringArray([
+			"Who gave you the token? Who benefits if we believe you? Why arrive now?",
+			"Ignorance can be rehearsed. Fear is harder. I believe you are frightened; I have not decided what that proves.",
+			"Stay where the guard can see you. One useful answer earns attention. Trust costs more."
 		]),
 	},
 	"catastrophe_one": {
@@ -47,7 +65,7 @@ static var DIALOGUES: Dictionary = {
 		"pages": PackedStringArray([
 			"The western horn screamed. Greyfen's soldiers ran toward a threat that was not there while the water gate ground shut behind them.",
 			"Fire climbed beneath the refugee granary. Mara reached the enclosure chain as the roof lifted in one bright, terrible breath.",
-			"Stone took the sky. Evan's last world became weight, smoke, and the certainty that he had arrived too late."
+			"A laughing man in a pale half-mask called Evan ‘witness’ as if they shared a joke. Then stone took the sky, and the world became weight and smoke."
 		]),
 	},
 	"return_one": {
@@ -90,17 +108,26 @@ static var DIALOGUES: Dictionary = {
 		"role": "Third failed line",
 		"pages": PackedStringArray([
 			"Evan knew their routes, their courage, and the places they had died. It felt like trust. It was only memory.",
-			"He changed Lysa's path, overruled Brann's retreat, and called every fear an expense the perfect plan could afford.",
+			"He changed Lysa's path, denied Brann the withdrawal route he had asked for, and called every fear an expense the perfect plan could afford.",
 			"Lysa understood before she died: Evan had known the danger and chosen it for her. He stayed for the next collapse because dying now looked easier than living with that."
+		]),
+	},
+	"third_plan": {
+		"speaker": "Evan Hale",
+		"role": "A plan built from erased trust",
+		"pages": PackedStringArray([
+			"I know every route now. I know who is brave enough, fast enough, frightened enough. If I place them exactly where the last line needed them—",
+			"Brann's condition is written beside the gate order: he will hold only if Piri and his household keep a clear withdrawal route. My plan needs him planted at the wheel.",
+			"Mara asks whether any of them agreed to this danger. The answer should stop me. Instead I look for a cleaner way to spend it."
 		]),
 	},
 	"catastrophe_three": {
 		"speaker": "Evan",
 		"role": "The third failed line",
 		"pages": PackedStringArray([
-			"Lysa looks at the blocked tunnel, then at me. She understands: I knew this route was dangerous, and I chose it for her anyway.",
-			"When the roof begins to fall, I could run. Instead I stay because another death feels easier than carrying what I did.",
-			"That is not courage. It is the Return teaching me to call my own life equipment."
+			"Lysa looked at the blocked tunnel, then at Evan. She understood what he had withheld before the soldiers reached her.",
+			"The secondary roof split. There was still a clear stair behind him. Evan watched dust fill it and did not move.",
+			"The last sound was not an answer—only timber, breath, and the choice to let both end."
 		])
 	},
 	"return_three": {
@@ -117,8 +144,8 @@ static var DIALOGUES: Dictionary = {
 		"role": "Retained evidence",
 		"pages": PackedStringArray([
 			"Fact: powder is stored beneath the refugee granary, reached through the old drainage tunnel.",
-			"Fact: Tomas has the keys, but someone is holding his husband. Inference: coercion makes him useful, not loyal.",
-			"Unknown: who placed the second charge. Removing these kegs will not stop the signal or open the gate."
+			"Fact: the crate marks and key scratches point toward Greyfen's own quartermaster stores.",
+			"Unknown: who placed the charge, or why. Removing these kegs will not stop the signal or open the gate."
 		]),
 	},
 	"signal_discovery": {
@@ -143,7 +170,7 @@ static var DIALOGUES: Dictionary = {
 		"speaker": "Nessa Reed",
 		"role": "Border surgeon",
 		"pages": PackedStringArray([
-			"I will move the clinic before the alarm—not because you remember my death, but because I have seen the powder marks myself.",
+			"I will move the clinic before the alarm—not because your certainty frightens me, but because I have seen the powder marks myself.",
 			"Give me a clear route, two carts, and no soldier deciding which patient looks loyal enough to save.",
 			"And Evan? Staying alive is part of the plan. I will not help you call otherwise by a prettier name."
 		]),
@@ -180,7 +207,8 @@ static var DIALOGUES: Dictionary = {
 		"role": "Greyfen courier",
 		"pages": PackedStringArray([
 			"I know the buyer's tunnel, his knock, and the very tragic hat he thinks makes him invisible.",
-			"I choose the upper route. Not the one your ghost-Lysa used, not the one Mara would order—the one I can leave if it turns bad.",
+			"I choose the upper route. Not the one you insist is fastest, not the one Mara would order—the one I can leave if it turns bad.",
+			"The buyer kept asking whether ‘the quartermaster's husband’ was still breathing. That is a threat, not a password.",
 			"You want my trust, longshanks? Be where you promised when I come back."
 		]),
 	},
@@ -202,22 +230,47 @@ static var DIALOGUES: Dictionary = {
 			"I answer publicly for his acts. If I knowingly sponsor a lie, let my claim fail with it. This is law, magistrate—not ownership."
 		]),
 	},
+	"evan_compact": {
+		"speaker": "Evan Hale",
+		"role": "A choice no Return can make for him",
+		"pages": PackedStringArray([
+			"Mara has risked her claim in public. The Compact asks for truthful service, not obedience, and gives protection neither of us can quietly withdraw.",
+			"I could still leave before the horn. Staying only means something if I am allowed to refuse."
+		]),
+	},
+	"transfer_order": {
+		"speaker": "Tamsin Ward",
+		"role": "Before the false alarm",
+		"pages": PackedStringArray([
+			"The local magistrate has ordered Evan and Kesh transferred before the western horn. Separate wagons. Sealed escort.",
+			"There will be no witnesses by the time either wagon reaches Lysford. Mara knows it. So does the magistrate waiting outside."
+		]),
+	},
 	"tomas_surrender": {
 		"speaker": "Tomas Rill",
 		"role": "Quartermaster and coerced sapper",
 		"pages": PackedStringArray([
 			"Six kegs below the granary. Two beneath the clinic road. The figures were meant to stay smaller. I am sorry about the variance.",
 			"They took my husband at dawn. Every order after that looked like the same order.",
-			"Here are the keys. I will name the officers. If he is already dead, I will still name them."
+			"Do not tell me you can save him. Tell me what happens if I put the keys down."
+		]),
+	},
+	"tomas_accepts": {
+		"speaker": "Tomas Rill",
+		"role": "A choice made before the alarm",
+		"pages": PackedStringArray([
+			"You name the charges. You bind my hands where the garrison can see. You look for him whether I am useful afterward or not.",
+			"Here are the keys. I will name the officers. If my husband is already dead, I will still name them."
 		]),
 	},
 	"corvin_lens": {
 		"speaker": "Corvin Sable",
 		"role": "The Laughing Saint",
 		"pages": PackedStringArray([
-			"Hold still, little witness. The lens dislikes a trembling subject, and I dislike sharing the stage.",
-			"Oh. That is not prophecy around your soul. Those are endings—layered like doors slammed from the other side.",
-			"How many deaths are you wearing? No, don't answer. A good mystery should leave before the applause."
+			"The pale half-mask appeared above the granary doors. An empty chair in silver thread marked Corvin's cuff—the Laughing Saint from the first collapse, alive in the only line anyone else remembered.",
+			"Mara's ward-cord snapped shut across the stair. Corvin never touched it. From the roof beam he tipped a spirit lens toward Evan and smiled when old fractures lit around his soul.",
+			"That is not prophecy, little witness. Those are endings—layered like doors slammed from the other side.",
+			"Tamsin reached the parapet as Corvin cut a counterweight and dropped through the open sluice. His laughter crossed the water after the true horn stopped."
 		]),
 	},
 	"tribunal": {
@@ -226,7 +279,7 @@ static var DIALOGUES: Dictionary = {
 		"pages": PackedStringArray([
 			"The tribunal recorded the living before it honored the dead: Piri's cadence, Brann's refusal, Kesh's terms, Tomas's keys, and every casualty the official order had tried to rename.",
 			"Evan testified only to what he could distinguish—what he saw, what he inferred, and what he could not explain.",
-			"He signed the Ash Witness record. Somewhere beyond mortal notice, stable command closed one hidden door and set another farther ahead."
+			"He signed the Ash Witness record. Greyfen returned to stable command."
 		]),
 	},
 	"ending": {
@@ -244,11 +297,11 @@ static var DIALOGUES: Dictionary = {
 static var FOLIO_ENTRIES: Dictionary = {
 	"phone": {
 		"title": "Cracked Phone",
-		"body": "38% battery at arrival. No service and no supernatural link to Earth. It returns to the anchor state with Evan's other possessions; only his memory of later use persists.",
+		"body": "38% battery at arrival. No service. The last visible time is 4:20 p.m.; the lock screen still belongs to an ordinary afternoon on Earth.",
 	},
 	"token": {
 		"title": "Bloodied Courier Token",
-		"body": "Carries Mara's private field cipher and ties Lysa's murdered courier to Greyfen. It is physical evidence: each Return removes it from Evan's hand until Lysa gives it to him again.",
+		"body": "Carries Mara's private field cipher and ties the murdered royal courier to Greyfen. It exists in Evan's hand only after the fleeing girl gives it to him.",
 	},
 	"powder": {
 		"title": "Granary Powder",
@@ -264,7 +317,7 @@ static var FOLIO_ENTRIES: Dictionary = {
 	},
 	"return_rule": {
 		"title": "The Return",
-		"body": "Only Evan's true death triggers it. A hidden, automatic anchor moves forward in stable conditions. Body, possessions, proof, and relationships reset; imperfect memory and trauma remain.",
+		"body": "Observed, not understood: after true death, Evan woke beneath the split ash at 4:20. His body and possessions were restored; his memory, pain, and fear were not. No one else remembered.",
 	},
 	"soul_scar": {
 		"title": "Soul Scar",

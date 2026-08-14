@@ -9,18 +9,36 @@ var title_screen: TitleScreen
 var game_world: GreyfenGameWorld
 var state: AshGameState
 var modal_layer: CanvasLayer
+var _state_is_persistable := false
 
 
 func _ready() -> void:
 	AudioManager.start_ambience()
+	_prime_title_state_from_save()
 	_show_title()
 
 
+func _prime_title_state_from_save() -> void:
+	if not SaveSystem.can_continue():
+		return
+	var data: Dictionary = SaveSystem.continue_game()
+	if data.is_empty():
+		return
+	var saved_state := StateScene.new()
+	if saved_state.load_save_data(data):
+		state = saved_state
+		_state_is_persistable = true
+
+
 func _show_title() -> void:
+	get_tree().paused = false
 	_clear_content()
 	SaveSystem.set_autosave_enabled(false)
 	title_screen = TitleScene.new()
 	title_screen.continue_available = SaveSystem.can_continue()
+	if state:
+		title_screen.reduce_motion = bool(state.settings.get("reduce_motion", false))
+		AudioManager.set_master_enabled(bool(state.settings.get("master_audio", true)))
 	title_screen.new_game_requested.connect(_start_new_game)
 	title_screen.continue_requested.connect(_continue_game)
 	title_screen.settings_requested.connect(_show_settings)
@@ -30,27 +48,60 @@ func _show_title() -> void:
 
 
 func _start_new_game() -> void:
+	if SaveSystem.can_continue():
+		AudioManager.play_ui("focus")
+		var panel := _make_modal("BEGIN A NEW ACCOUNT?", "This will replace the current journey after a safe reset. The existing save is left untouched until you confirm.")
+		var box := panel.get_meta("content") as VBoxContainer
+		var confirm := Button.new()
+		confirm.text = "START NEW GAME — REPLACE SAVE"
+		confirm.theme_type_variation = "AshPrimaryButton"
+		confirm.custom_minimum_size.y = 48
+		confirm.pressed.connect(_begin_new_game)
+		box.add_child(confirm)
+		var keep := Button.new()
+		keep.text = "KEEP CURRENT JOURNEY"
+		keep.custom_minimum_size.y = 48
+		keep.pressed.connect(_close_modal)
+		box.add_child(keep)
+		keep.grab_focus.call_deferred()
+		return
+	_begin_new_game()
+
+
+func _begin_new_game() -> void:
 	AudioManager.play_ui("confirm")
+	var carried_settings: Dictionary = state.settings.duplicate(true) if state else {}
+	if not SaveSystem.reset_save():
+		_show_message("SAVE COULD NOT BE CLEARED", "The existing journey is still intact. Greyfen will not start a new account until that file can be safely replaced.")
+		return
 	state = StateScene.new()
-	SaveSystem.reset_save()
+	if not carried_settings.is_empty():
+		state.settings.merge(carried_settings, true)
+	_state_is_persistable = false
 	_start_world()
 
 
 func _continue_game() -> void:
 	AudioManager.play_ui("confirm")
+	var selected_settings: Dictionary = state.settings.duplicate(true) if state else {}
 	var data: Dictionary = SaveSystem.continue_game()
 	if data.is_empty():
 		_show_message("THE THREAD IS BROKEN", "The remembered journey could not be opened. A new game remains safe to begin.")
 		return
-	state = StateScene.new()
-	if not state.load_save_data(data):
+	var loaded_state := StateScene.new()
+	if not loaded_state.load_save_data(data):
 		_show_message("THE MEMORY DOES NOT FIT", "This save belongs to an incompatible story version. It has not been overwritten.")
 		return
+	if not selected_settings.is_empty():
+		loaded_state.settings.merge(selected_settings, true)
+	state = loaded_state
+	_state_is_persistable = true
 	_start_world()
 
 
 func _start_world() -> void:
 	_clear_content()
+	AudioManager.set_master_enabled(bool(state.settings.get("master_audio", true)))
 	game_world = WorldScene.new()
 	game_world.configure(state)
 	game_world.autosave_requested.connect(_save_snapshot)
@@ -61,10 +112,18 @@ func _start_world() -> void:
 
 
 func _save_snapshot(data: Dictionary) -> void:
-	SaveSystem.autosave(data)
+	var saved := SaveSystem.autosave(data)
+	_state_is_persistable = saved or _state_is_persistable
+	if game_world and is_instance_valid(game_world) and game_world.ui:
+		if saved:
+			game_world.ui.show_saved()
+		else:
+			game_world.ui.notify("Progress could not be written. Your current session is still running.", Color("d17a64"), 4.0)
 
 
 func _current_snapshot() -> Dictionary:
+	if game_world and is_instance_valid(game_world):
+		return game_world.snapshot_data()
 	if state:
 		return state.to_save_data()
 	return {}
@@ -86,8 +145,8 @@ func _show_settings() -> void:
 	box.add_child(reduce_flash)
 	var sound := CheckBox.new()
 	sound.text = "Procedural ambience and interface sound"
-	sound.button_pressed = AudioManager.master_enabled
-	sound.toggled.connect(AudioManager.set_master_enabled)
+	sound.button_pressed = bool(state.settings.get("master_audio", AudioManager.master_enabled)) if state else AudioManager.master_enabled
+	sound.toggled.connect(_sound_toggled)
 	box.add_child(sound)
 	var note := Label.new()
 	note.text = "All dialogue is captioned. Gameplay uses no color-only objective states."
@@ -104,6 +163,22 @@ func _setting_toggled(enabled: bool, key: String) -> void:
 	if title_screen and key == "reduce_motion":
 		title_screen.reduce_motion = enabled
 	AudioManager.play_ui("confirm")
+	_persist_title_preferences()
+
+
+func _sound_toggled(enabled: bool) -> void:
+	if state == null:
+		state = StateScene.new()
+	state.settings["master_audio"] = enabled
+	AudioManager.set_master_enabled(enabled)
+	if enabled:
+		AudioManager.play_ui("confirm")
+	_persist_title_preferences()
+
+
+func _persist_title_preferences() -> void:
+	if _state_is_persistable and state and SaveSystem.can_continue():
+		SaveSystem.autosave(state.to_save_data())
 
 
 func _show_memory_of_greyfen() -> void:
@@ -127,7 +202,8 @@ func _show_message(heading: String, body: String) -> void:
 
 func _show_ending(completed_state: AshGameState) -> void:
 	state = completed_state
-	SaveSystem.autosave(state.to_save_data())
+	var ending_saved := SaveSystem.autosave(state.to_save_data())
+	_state_is_persistable = ending_saved or _state_is_persistable
 	SaveSystem.set_autosave_enabled(false)
 	_clear_content()
 
@@ -174,10 +250,13 @@ func _show_ending(completed_state: AshGameState) -> void:
 	body.theme_type_variation = "AshBody"
 	box.add_child(body)
 	var stat := Label.new()
-	stat.text = "%d Returns remembered  ·  %d soul scars carried  ·  G-1 formed" % [int(state.retained.get("death_count", 0)), int(state.retained.get("soul_scars", 0))]
+	stat.text = "%d Returns remembered  ·  %d soul scars carried  ·  one surviving line chosen" % [int(state.retained.get("death_count", 0)), int(state.retained.get("soul_scars", 0))]
 	stat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stat.theme_type_variation = "AshSubtitle"
 	stat.add_theme_font_size_override("font_size", 18)
+	if not ending_saved:
+		stat.text += "\nProgress could not be written; leave this screen open until storage is available."
+		stat.add_theme_color_override("font_color", Color("d17a64"))
 	box.add_child(stat)
 	var again := Button.new()
 	again.text = "RETURN TO THE TITLE"

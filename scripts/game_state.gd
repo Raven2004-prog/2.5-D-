@@ -30,6 +30,7 @@ func new_game() -> void:
 	settings = {
 		"reduce_motion": false,
 		"reduce_flash": false,
+		"master_audio": true,
 		"high_contrast": false,
 		"rain_intensity": 1.0,
 		"text_scale": 1.0,
@@ -47,6 +48,11 @@ func _reset_current_line(stage: String = "arrival") -> void:
 		"flags": [],
 		"player_position": [180.0, 875.0],
 		"finale_time": 0.0,
+		"finale_events": [],
+		"agent_states": {},
+		"pending_story": "",
+		"pending_choices": [],
+		"pending_return": {},
 	}
 
 
@@ -188,14 +194,108 @@ func to_save_data() -> Dictionary:
 
 
 func load_save_data(data: Dictionary) -> bool:
-	if int(data.get("schema_version", -1)) != SCHEMA_VERSION:
+	var schema_value: Variant = data.get("schema_version", -1)
+	if not _is_finite_number(schema_value) or float(schema_value) != float(SCHEMA_VERSION):
+		return false
+	if str(data.get("content_version", "")) != CONTENT_VERSION:
 		return false
 	if not data.has("retained") or not data.has("current_line"):
 		return false
-	retained = (data["retained"] as Dictionary).duplicate(true)
-	current_line = (data["current_line"] as Dictionary).duplicate(true)
-	settings = (data.get("settings", settings) as Dictionary).duplicate(true)
+	var loaded_retained: Variant = data["retained"]
+	var loaded_line: Variant = data["current_line"]
+	var loaded_settings: Variant = data.get("settings", {})
+	if not loaded_retained is Dictionary or not loaded_line is Dictionary or not loaded_settings is Dictionary:
+		return false
+	if not _arrays_are_valid(loaded_retained, ["knowledge", "echo_log", "trauma_tags"]):
+		return false
+	if not _arrays_are_valid(loaded_line, ["physical_evidence", "inventory", "contributions", "flags", "finale_events", "pending_choices"]):
+		return false
+	if not _numeric_fields_are_valid(loaded_retained, ["loop_index", "death_count", "soul_scars"]):
+		return false
+	if not _boolean_fields_are_valid(loaded_retained, ["g0_formed", "g1_formed"]):
+		return false
+	if not _numeric_fields_are_valid(loaded_line, ["finale_time"]):
+		return false
+	if loaded_line.has("stage") and not loaded_line["stage"] is String:
+		return false
+	if loaded_line.has("pending_story") and not loaded_line["pending_story"] is String:
+		return false
+	if loaded_line.has("player_position") and not _is_number_pair(loaded_line["player_position"]):
+		return false
+	if not _boolean_fields_are_valid(loaded_settings, ["reduce_motion", "reduce_flash", "master_audio", "high_contrast"]):
+		return false
+	if not _numeric_fields_are_valid(loaded_settings, ["rain_intensity", "text_scale"]):
+		return false
+	if loaded_line.has("npc_tags"):
+		if not loaded_line["npc_tags"] is Dictionary:
+			return false
+		for tags: Variant in (loaded_line["npc_tags"] as Dictionary).values():
+			if not tags is Array:
+				return false
+	if loaded_line.has("agent_states"):
+		if not loaded_line["agent_states"] is Dictionary:
+			return false
+		for agent_data: Variant in (loaded_line["agent_states"] as Dictionary).values():
+			if not agent_data is Dictionary:
+				return false
+			if not _numeric_fields_are_valid(agent_data, ["state", "resolve", "suspicion", "patrol_index"]):
+				return false
+			for vector_key in ["position", "last_known", "facing"]:
+				if agent_data.has(vector_key) and not _is_number_pair(agent_data[vector_key]):
+					return false
+	if loaded_line.has("pending_return") and not loaded_line["pending_return"] is Dictionary:
+		return false
+	for choice: Variant in (loaded_line.get("pending_choices", []) as Array):
+		if not choice is Dictionary:
+			return false
+	var pending_return: Dictionary = loaded_line.get("pending_return", {})
+	if not pending_return.is_empty():
+		for key in ["dialogue_id", "cause", "echo", "trauma", "next_stage"]:
+			if not pending_return.has(key) or not pending_return[key] is String:
+				return false
+
+	var retained_defaults := retained.duplicate(true)
+	retained_defaults.merge((loaded_retained as Dictionary).duplicate(true), true)
+	retained = retained_defaults
+	var line_defaults := current_line.duplicate(true)
+	line_defaults.merge((loaded_line as Dictionary).duplicate(true), true)
+	current_line = line_defaults
+	var setting_defaults := settings.duplicate(true)
+	setting_defaults.merge((loaded_settings as Dictionary).duplicate(true), true)
+	settings = setting_defaults
 	return true
+
+
+func _arrays_are_valid(source: Dictionary, keys: Array[String]) -> bool:
+	for key in keys:
+		if source.has(key) and not source[key] is Array:
+			return false
+	return true
+
+
+func _numeric_fields_are_valid(source: Dictionary, keys: Array[String]) -> bool:
+	for key in keys:
+		if source.has(key) and not _is_finite_number(source[key]):
+			return false
+	return true
+
+
+func _boolean_fields_are_valid(source: Dictionary, keys: Array[String]) -> bool:
+	for key in keys:
+		if source.has(key) and not source[key] is bool:
+			return false
+	return true
+
+
+func _is_number_pair(value: Variant) -> bool:
+	if not value is Array or value.size() != 2:
+		return false
+	return _is_finite_number(value[0]) and _is_finite_number(value[1])
+
+
+func _is_finite_number(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value))
 
 
 func checkpoint_summary() -> String:
@@ -204,4 +304,3 @@ func checkpoint_summary() -> String:
 		present_foundation_count(),
 		contribution_count(),
 	]
-

@@ -5,6 +5,9 @@ signal dialogue_finished(dialogue_id: String)
 signal dialogue_choice(dialogue_id: String, choice_id: String)
 signal folio_closed
 signal pause_requested
+signal resume_requested
+signal title_requested
+signal setting_changed(key: String, enabled: bool)
 
 const AshTheme := preload("res://scripts/ui_theme.gd")
 const PortraitScene := preload("res://scripts/portrait.gd")
@@ -18,6 +21,7 @@ var _chapter_label: Label
 var _clock_label: Label
 var _thread_label: RichTextLabel
 var _prompt_panel: PanelContainer
+var _condition_panel: PanelContainer
 var _prompt_label: Label
 var _health_bar: ProgressBar
 var _stamina_bar: ProgressBar
@@ -39,16 +43,25 @@ var _page_index := 0
 var _folio_panel: PanelContainer
 var _folio_title: Label
 var _folio_content: RichTextLabel
+var _pause_panel: PanelContainer
+var _pause_motion: CheckBox
+var _pause_flash: CheckBox
+var _pause_audio: CheckBox
 var _notification_tween: Tween
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 20
 	_build_ui()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dialogue_open and (event.is_action_pressed("interact") or event.is_action_pressed("ui_accept")):
+	if _pause_panel and _pause_panel.visible and event.is_action_pressed("ui_cancel"):
+		hide_pause()
+		resume_requested.emit()
+		get_viewport().set_input_as_handled()
+	elif dialogue_open and (event.is_action_pressed("interact") or event.is_action_pressed("ui_accept")):
 		if _choice_box.visible:
 			return
 		advance_dialogue()
@@ -91,14 +104,23 @@ func set_stamina(stamina: float, maximum: float) -> void:
 	_stamina_bar.value = stamina
 
 
-func set_threads(discovered: Dictionary, contributions: Dictionary) -> void:
+func set_threads(retained: Dictionary, present: Dictionary, resolved: Dictionary) -> void:
 	var lines := PackedStringArray(["[color=#e7ad55][b]THE THREE FOUNDATIONS[/b][/color]"])
 	for item in [["powder", "Powder beneath the granary"], ["signal", "Counterfeit horn cadence"], ["gate", "Jammed water gate"]]:
 		var id: String = item[0]
-		var marker := "◆" if contributions.get(id, false) else ("◇" if discovered.get(id, false) else "·")
-		var color := "#79b4ad" if contributions.get(id, false) else ("#e4c37a" if discovered.get(id, false) else "#748089")
+		var marker := "◆" if resolved.get(id, false) else ("◇" if present.get(id, false) else ("↺" if retained.get(id, false) else "·"))
+		var color := "#79b4ad" if resolved.get(id, false) else ("#e4c37a" if present.get(id, false) else ("#8fbfc3" if retained.get(id, false) else "#748089"))
 		lines.append("[color=%s]%s %s[/color]" % [color, marker, item[1]])
 	_thread_label.text = "\n".join(lines)
+
+
+func sync_settings(settings: Dictionary) -> void:
+	if _pause_motion:
+		_pause_motion.set_pressed_no_signal(bool(settings.get("reduce_motion", false)))
+	if _pause_flash:
+		_pause_flash.set_pressed_no_signal(bool(settings.get("reduce_flash", false)))
+	if _pause_audio:
+		_pause_audio.set_pressed_no_signal(bool(settings.get("master_audio", true)))
 
 
 func show_prompt(text: String) -> void:
@@ -134,6 +156,8 @@ func show_dialogue(id: String, data: Dictionary, choices: Array = []) -> void:
 	_page_index = 0
 	dialogue_open = true
 	_dialogue_panel.visible = true
+	_condition_panel.visible = false
+	_prompt_panel.visible = false
 	_speaker_label.text = str(data.get("speaker", ""))
 	_role_label.text = str(data.get("role", ""))
 	_dialogue_portrait.set_character(str(data.get("portrait", str(data.get("speaker", "narrator")).to_lower())))
@@ -156,13 +180,15 @@ func advance_dialogue() -> void:
 		_build_choices(_choice_box.get_meta("pending_choices") as Array)
 		_choice_box.remove_meta("pending_choices")
 		return
+	var completed_id := _dialogue_id
 	hide_dialogue()
-	dialogue_finished.emit(_dialogue_id)
+	dialogue_finished.emit(completed_id)
 
 
 func hide_dialogue() -> void:
 	dialogue_open = false
 	_dialogue_panel.visible = false
+	_condition_panel.visible = true
 	_dialogue_id = ""
 	_pages = PackedStringArray()
 	_clear_choices()
@@ -171,6 +197,8 @@ func hide_dialogue() -> void:
 func show_folio(retained_entries: Array, present_entries: Array, people_entries: Array, scars: int) -> void:
 	folio_open = true
 	_folio_panel.visible = true
+	_condition_panel.visible = false
+	_prompt_panel.visible = false
 	var text := PackedStringArray()
 	text.append("[color=#e7ad55][font_size=22][b]MEMORY FOLIO[/b][/font_size][/color]")
 	text.append("[color=#9db9bc]Facts written in rain-blue survive only in Evan. Present-line evidence is amber.[/color]\n")
@@ -200,7 +228,21 @@ func show_folio(retained_entries: Array, present_entries: Array, people_entries:
 func hide_folio() -> void:
 	folio_open = false
 	_folio_panel.visible = false
+	_condition_panel.visible = true
 	folio_closed.emit()
+
+
+func show_pause() -> void:
+	_pause_panel.visible = true
+	_condition_panel.visible = false
+	_prompt_panel.visible = false
+	var resume_button := _pause_panel.get_node("PauseBox/Resume") as Button
+	resume_button.grab_focus()
+
+
+func hide_pause() -> void:
+	_pause_panel.visible = false
+	_condition_panel.visible = true
 
 
 func _render_page() -> void:
@@ -285,17 +327,27 @@ func _build_ui() -> void:
 	status_box.add_child(_thread_label)
 
 	# Condition bars.
-	var condition_panel := PanelContainer.new()
-	condition_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	condition_panel.position = Vector2(24, -92)
-	condition_panel.size = Vector2(260, 66)
-	condition_panel.theme_type_variation = "AshGlassPanel"
-	_root.add_child(condition_panel)
-	var condition_box := VBoxContainer.new()
-	condition_box.add_theme_constant_override("separation", 5)
-	condition_panel.add_child(condition_box)
+	_condition_panel = PanelContainer.new()
+	_condition_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_condition_panel.position = Vector2(24, -104)
+	_condition_panel.size = Vector2(280, 78)
+	_condition_panel.theme_type_variation = "AshGlassPanel"
+	_root.add_child(_condition_panel)
+	var condition_box := GridContainer.new()
+	condition_box.columns = 2
+	condition_box.add_theme_constant_override("h_separation", 8)
+	condition_box.add_theme_constant_override("v_separation", 6)
+	_condition_panel.add_child(condition_box)
+	var health_label := Label.new()
+	health_label.text = "BODY"
+	health_label.theme_type_variation = "AshKicker"
+	condition_box.add_child(health_label)
 	_health_bar = _make_bar("BODY", Color("aa5b55"))
 	condition_box.add_child(_health_bar)
+	var stamina_label := Label.new()
+	stamina_label.text = "BREATH"
+	stamina_label.theme_type_variation = "AshKicker"
+	condition_box.add_child(stamina_label)
 	_stamina_bar = _make_bar("BREATH", Color("5c9996"))
 	condition_box.add_child(_stamina_bar)
 	set_condition(100, 100, 100, 100)
@@ -340,6 +392,7 @@ func _build_ui() -> void:
 
 	_build_dialogue()
 	_build_folio()
+	_build_pause()
 
 
 func _build_dialogue() -> void:
@@ -421,10 +474,92 @@ func _build_folio() -> void:
 	column.add_child(close_hint)
 
 
+func _build_pause() -> void:
+	_pause_panel = PanelContainer.new()
+	_pause_panel.name = "PausePanel"
+	_pause_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_pause_panel.position = Vector2(-260, -280)
+	_pause_panel.size = Vector2(520, 560)
+	_pause_panel.theme_type_variation = "AshGlassPanel"
+	_pause_panel.visible = false
+	_root.add_child(_pause_panel)
+	var box := VBoxContainer.new()
+	box.name = "PauseBox"
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 12)
+	_pause_panel.add_child(box)
+	var kicker := Label.new()
+	kicker.text = "THE RAIN WAITS"
+	kicker.theme_type_variation = "AshKicker"
+	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(kicker)
+	var heading := Label.new()
+	heading.text = "PAUSED"
+	heading.theme_type_variation = "AshTitle"
+	heading.add_theme_font_size_override("font_size", 42)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(heading)
+	var controls := Label.new()
+	controls.text = "WASD / ARROWS  Move\nSHIFT  Sprint   ·   SPACE  Dodge\nE  Interact   ·   F  Shove   ·   Q  Focus\nTAB  Memory Folio"
+	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	controls.theme_type_variation = "AshBody"
+	box.add_child(controls)
+	var settings_heading := Label.new()
+	settings_heading.text = "COMFORT & SOUND"
+	settings_heading.theme_type_variation = "AshKicker"
+	settings_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(settings_heading)
+	_pause_motion = _make_pause_toggle("Reduce rain and camera motion", "reduce_motion")
+	box.add_child(_pause_motion)
+	_pause_flash = _make_pause_toggle("Reduce Return and lightning flashes", "reduce_flash")
+	box.add_child(_pause_flash)
+	_pause_audio = _make_pause_toggle("Procedural ambience and interface sound", "master_audio")
+	box.add_child(_pause_audio)
+	var resume := Button.new()
+	resume.name = "Resume"
+	resume.text = "RESUME"
+	resume.theme_type_variation = "AshPrimaryButton"
+	resume.custom_minimum_size.y = 48
+	resume.pressed.connect(_pause_resume)
+	box.add_child(resume)
+	var title := Button.new()
+	title.name = "Title"
+	title.text = "SAVE & RETURN TO TITLE"
+	title.custom_minimum_size.y = 48
+	title.pressed.connect(_pause_title)
+	box.add_child(title)
+	var hint := Label.new()
+	hint.text = "Progress also saves after every Return and major choice."
+	hint.theme_type_variation = "AshHint"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+
+
+func _pause_resume() -> void:
+	hide_pause()
+	resume_requested.emit()
+
+
+func _pause_title() -> void:
+	hide_pause()
+	title_requested.emit()
+
+
+func _make_pause_toggle(label_text: String, key: String) -> CheckBox:
+	var toggle := CheckBox.new()
+	toggle.text = label_text
+	toggle.toggled.connect(_pause_setting_toggled.bind(key))
+	return toggle
+
+
+func _pause_setting_toggled(enabled: bool, key: String) -> void:
+	setting_changed.emit(key, enabled)
+
+
 func _make_bar(label_text: String, fill_color: Color) -> ProgressBar:
 	var bar := ProgressBar.new()
-	bar.custom_minimum_size = Vector2(220, 18)
-	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(188, 18)
+	bar.show_percentage = true
 	bar.tooltip_text = label_text
 	var background := StyleBoxFlat.new()
 	background.bg_color = Color("11171b")

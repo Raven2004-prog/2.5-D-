@@ -57,6 +57,8 @@ func set_master_enabled(enabled: bool) -> void:
 		if _ui_player != null:
 			_ui_player.stop()
 		stop_ambience()
+	else:
+		start_ambience()
 
 
 func set_ui_volume(linear_volume: float) -> void:

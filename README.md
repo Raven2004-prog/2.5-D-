@@ -6,6 +6,8 @@ You play Evan Hale, an anxious nineteen-year-old pulled from Earth into the rain
 
 ## Play
 
+Double-click **`PLAY_ASH_AT_GREYFEN.bat`** for the simplest launch.
+
 Run `Godot_v4.7.1-stable_win64.exe/Godot_v4.7.1-stable_win64.exe`, import this folder, and press **F6/F5**, or launch from PowerShell:
 
 ```powershell
