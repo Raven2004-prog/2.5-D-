@@ -4,6 +4,26 @@ class_name CharacterPortrait
 var character_id := "evan"
 var accent := Color("d8a04a")
 var _phase := 0.0
+var _portrait_atlas: Texture2D
+var _atlas_load_attempted := false
+
+const PORTRAIT_ATLAS_PATH := "res://assets/ashen/portraits/greyfen_portrait_atlas.png"
+const PORTRAIT_ORDER := [
+	&"evan", &"mara", &"tamsin", &"lysa", &"nessa",
+	&"brann", &"kesh", &"piri", &"tomas", &"corvin",
+]
+const PORTRAIT_INDEX := {
+	"evan": 0,
+	"mara": 1,
+	"tamsin": 2,
+	"lysa": 3,
+	"nessa": 4,
+	"brann": 5,
+	"kesh": 6,
+	"piri": 7,
+	"tomas": 8,
+	"corvin": 9,
+}
 
 const COLORS := {
 	"evan": [Color("263b4c"), Color("d1af92"), Color("171b20"), Color("79c7d0")],
@@ -23,6 +43,7 @@ const COLORS := {
 func _ready() -> void:
 	custom_minimum_size = Vector2(118, 118)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ensure_portrait_atlas()
 	queue_redraw()
 
 
@@ -38,10 +59,51 @@ func set_character(id: String) -> void:
 	queue_redraw()
 
 
+func is_using_atlas_portrait() -> bool:
+	return _ensure_portrait_atlas() and PORTRAIT_INDEX.has(character_id)
+
+
+func get_portrait_source_region(id: String = "") -> Rect2:
+	if not _ensure_portrait_atlas():
+		return Rect2()
+	var requested_id := character_id if id.is_empty() else id.to_lower()
+	if not PORTRAIT_INDEX.has(requested_id):
+		return Rect2()
+	var index := int(PORTRAIT_INDEX[requested_id])
+	var cell_size := Vector2(float(_portrait_atlas.get_width()) / 5.0, float(_portrait_atlas.get_height()) / 2.0)
+	var cell := Vector2(index % 5, index / 5)
+	# Dialogue framing is a head-and-shoulders square crop from each waist-up cell.
+	var crop_size := minf(cell_size.x, cell_size.y) - 2.0
+	return Rect2(cell * cell_size + Vector2.ONE, Vector2(crop_size, crop_size))
+
+
+func get_portrait_atlas() -> Texture2D:
+	_ensure_portrait_atlas()
+	return _portrait_atlas
+
+
 func _draw() -> void:
 	var rect := Rect2(Vector2(3, 3), size - Vector2(6, 6))
 	draw_style_box(_panel_style(), rect)
 	var palette: Array = COLORS.get(character_id, COLORS["narrator"])
+	var local_accent: Color = palette[3]
+	if _draw_atlas_portrait(rect):
+		_draw_rain_reflection(local_accent)
+		return
+	_draw_fallback_portrait(palette)
+	_draw_rain_reflection(local_accent)
+
+
+func _draw_atlas_portrait(panel_rect: Rect2) -> bool:
+	var source_rect := get_portrait_source_region()
+	if source_rect.size.x <= 1.0:
+		return false
+	var destination := panel_rect.grow(-5.0)
+	draw_texture_rect_region(_portrait_atlas, destination, source_rect)
+	return true
+
+
+func _draw_fallback_portrait(palette: Array) -> void:
 	var clothing: Color = palette[0]
 	var skin: Color = palette[1]
 	var hair: Color = palette[2]
@@ -70,10 +132,25 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([center + Vector2(13, -46), center + Vector2(27, -65), center + Vector2(5, -50)]), local_accent.darkened(0.35))
 	elif character_id == "corvin":
 		draw_arc(center + Vector2(0, -18), 12, 0.08, PI - 0.08, 16, Color("6f2731"), 2.0, true)
-	# Eyes and a small changing rain reflection keep portraits alive without animation assets.
+	# Eyes keep the generated-atlas fallback expressive without external assets.
 	draw_line(center + Vector2(-12, -22), center + Vector2(-4, -22), hair.lightened(0.12), 2.0)
 	draw_line(center + Vector2(4, -22), center + Vector2(12, -22), hair.lightened(0.12), 2.0)
+
+
+func _draw_rain_reflection(_local_accent: Color) -> void:
 	draw_line(Vector2(14 + fmod(_phase * 11.0, maxf(1.0, size.x - 28.0)), 10), Vector2(8 + fmod(_phase * 11.0, maxf(1.0, size.x - 28.0)), 23), Color(0.7, 0.8, 0.83, 0.15), 1.0)
+
+
+func _ensure_portrait_atlas() -> bool:
+	if is_instance_valid(_portrait_atlas):
+		return true
+	if _atlas_load_attempted:
+		return false
+	_atlas_load_attempted = true
+	if not ResourceLoader.exists(PORTRAIT_ATLAS_PATH):
+		return false
+	_portrait_atlas = load(PORTRAIT_ATLAS_PATH) as Texture2D
+	return is_instance_valid(_portrait_atlas)
 
 
 func _panel_style() -> StyleBoxFlat:

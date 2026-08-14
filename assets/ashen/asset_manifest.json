@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "project": "Ash Witness: The Same Rain",
+  "art_direction": "Ashen Diorama",
+  "manifest_updated": "2026-08-15",
+  "policy": {
+    "original_assets_only": true,
+    "named_game_style_prompts_allowed": false,
+    "unmanifested_release_assets_allowed": false,
+    "generated_concepts_are_production_textures": false
+  },
+  "assets": [
+    {
+      "id": "concept.greyfen_five_district_environment.v1",
+      "path": "res://assets/ashen/concepts/greyfen_five_district_environment_concept.png",
+      "role": "environment_concept_reference",
+      "status": "selected",
+      "release_use": "reference_only_not_a_runtime_texture",
+      "created_date": "2026-08-14",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a00166-a23e-7b53-a11d-59622cdbafbe/exec-c3c70a58-813f-46fb-9873-c206999fac9f.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: original game environment concept sheet for a 2.5D narrative stealth-adventure\nPrimary request: Create one polished 16:9 landscape concept sheet showing five distinct but geographically connected districts of Greyfen, a rainbound frontier fortress in a drowned fen. This is an original visual direction called Ashen Diorama.\nScene/backdrop: five cinematic environment vignettes arranged as a harmonious concept sheet with subtle frameless transitions, each viewed from the same fixed three-quarter orthographic camera at roughly 35 degrees: (1) Anchor Hollow and West Causeway, with a split ash tree, old stone anchor, drowned reed beds, black rainwater and a narrow mud road; (2) West Gate, Grey Keep and Oathstone, with hand-hewn basalt battlements, broken gate towers, steep wet roofs and a weathered ritual stone; (3) Granary and Refuge Row, with a broad timber granary, patched canvas homes, stacked supplies and protective amber ward lanterns; (4) Field Clinic and Southern Drains, with low stone clinic buildings, rain gutters, flooded steps and a half-visible drainage tunnel; (5) Water Gate and Fen Edge, with an oxidized iron sluice wheel, dark channels, flood barriers, reed islands and distant storm haze.\nSubject: the environments are the heroes; include only a few tiny anonymous human and horned-refugee silhouettes for scale, with no identifiable protagonists and no combat pose.\nStyle/medium: original high-fidelity painterly 3D diorama concept art; sculpted miniature-scale architecture, tactile hand-painted surfaces, restrained pixel-like dithering only on selected edge accents, rich depth layering, elegant readable silhouettes, professional game art production sheet, neither photorealistic nor cartoonish.\nComposition/framing: 16:9 landscape; exactly five readable environment views with consistent camera, scale, palette and material language; strong foreground-midground-background separation; each district has a clear focal landmark and navigable paths; visually cohesive rather than a busy collage.\nLighting/mood: bronze storm dusk under heavy charcoal clouds; cold rain-blue and fen-teal ambient light opposed by localized burnt-amber ward lights; subtle volumetric fog, wet reflections, long soft shadows, restrained bloom, shallow-focus diorama staging; tense, humane, mournful and beautiful.\nColor palette: charcoal basalt, rain blue, fen teal, desaturated canvas and timber, oxidized bronze, burnt amber light, very limited muted blood-red accents.\nMaterials/textures: rain-polished basalt, soaked timber grain, patched waxed canvas, churned mud, black water, moss, reeds, rusted iron, hammered bronze, puddle ripples and roof runoff.\nConstraints: entirely original world and visual design; no text, letters, captions, labels, numbers, logos, interface elements, borders, trademarks or watermark; no recognizable characters or assets from any existing game; no modern technology; no giant monsters; no decorative fantasy magic overload; no sunny weather; no generic heroic pose.\nAvoid: branded game styles or compositions, anime styling, flat vector art, simplistic primitives, photorealistic film stills, excessive bloom, excessive depth-of-field blur, clutter that obscures paths, illegible dark crush.",
+      "file": {
+        "format": "PNG",
+        "width": 1672,
+        "height": 941,
+        "aspect_ratio": "approximately 16:9 (1.777:1)",
+        "color": "24-bit RGB",
+        "alpha": false,
+        "bytes": 2580600,
+        "sha256": "8D8F64F59A06143CA21CABE844DA2AA5F4F26CE4B0D845F637D9BAFD99F1D9F3"
+      },
+      "inspection": {
+        "date": "2026-08-14",
+        "result": "pass_with_production_notes",
+        "confirmed": [
+          "exactly five coherent environment views",
+          "distinct district landmarks and navigable path intent",
+          "consistent three-quarter storm-dusk presentation",
+          "wet basalt, timber, canvas, mud, water and reed material language",
+          "cold rain light opposed by localized amber refuge light",
+          "no visible text, labels, logos, watermark or UI",
+          "no recognizable third-party character or game asset"
+        ],
+        "production_notes": [
+          "reduce the Keep's gothic monumentality to frontier-fort scale",
+          "raise selected route and doorway midtones at gameplay exposure",
+          "retain localized amber without excessive bloom",
+          "use as mood, composition and material reference only; do not trace or project into production assets"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Greyfen environment concept generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "character.evan.directional_idle.v1",
+      "path": "res://assets/ashen/characters/evan/evan_8dir_idle_atlas.png",
+      "role": "player_world_sprite_atlas",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-14",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-880a8549-a27c-4385-b0df-c5a94683d0ef.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: production game character directional sprite atlas with a genuinely transparent background\nPrimary request: Create Evan, the original protagonist of a rainbound dark-fantasy narrative game: a lean young adult man, exhausted but alert, barefoot, damp dark-brown hair, weathered ash-grey linen shirt, charcoal travel trousers, narrow worn leather belt, small empty cord at his neck, no armor, no weapon. He must feel vulnerable, intelligent, and stubborn rather than heroic.\nStyle/medium: original high-density hand-painted pixel art with crisp deliberately stepped pixel clusters, tactile cloth detail and strong readable silhouette; intended as a lit 2D billboard inside a painterly 3D diorama. Not chibi, not anime, not photorealistic.\nComposition/framing: exact 4 by 2 grid of eight equal unbordered cells, full body centered in every cell at identical scale and foot baseline. Show the same neutral standing pose in eight directions in this exact reading order: back/north, back-right/north-east, right/east, front-right/south-east, front/south, front-left/south-west, left/west, back-left/north-west. No text or direction labels.\nLighting/mood: neutral production albedo with soft cool rain-blue rim and a very restrained warm ward-amber bounce; preserve readable midtones.\nColor palette: charcoal, ash grey, desaturated brown skin and hair, tiny warm leather accents.\nConstraints: actual alpha transparency; no ground, no shadow ellipse, no scenery, no frame lines, no text, no logo, no watermark; identical identity, clothing, proportions, palette and pose across all eight views; generous transparent padding around every figure; original design only.\nAvoid: recognizable existing-game characters, branded styles, ornate costume, cape, shoes, armor, weapon, magic effects, blur, gradients replacing pixel clusters, inconsistent face or outfit.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "32-bit ARGB",
+        "alpha": true,
+        "bytes": 2053383,
+        "sha256": "959586EC4329495F408AA771C59D5FE40DC057D129CF11AB29CEEF86EB35595C"
+      },
+      "atlas": {
+        "columns": 4,
+        "rows": 2,
+        "cell_width": 384,
+        "cell_height": 512,
+        "reading_order": [
+          "north/back",
+          "north-east/back-right",
+          "east/right",
+          "south-east/front-right",
+          "south/front",
+          "south-west/front-left",
+          "west/left",
+          "north-west/back-left"
+        ]
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass",
+        "confirmed": [
+          "eight full-body views in the required 4 by 2 reading order",
+          "consistent identity, clothing, scale and foot baseline",
+          "transparent padding with no baked ground or shadow ellipse",
+          "no text, labels, logo or watermark",
+          "original character design with readable directional silhouettes"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Evan directional world-sprite atlas generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "character.choir_agent.directional_idle.v1",
+      "path": "res://assets/ashen/characters/enemies/choir_agent_8dir_idle_atlas.png",
+      "role": "enemy_world_sprite_atlas",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-14",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-d7d3ccc7-26db-40ff-b4bc-d60d7529cbcf.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: production enemy directional sprite atlas with a genuinely transparent background\nPrimary request: Create one original Greyfen covert saboteur/choir agent: lean adult in rain-dark layered leather and waxed charcoal cloth, half-mask across nose and mouth, low hood, compact padded vest, rope and utility pouches, muted iron bracers, no visible insignia, holding no weapon. The figure should read as frightened and coerced as well as dangerous, suitable for a non-lethal stealth encounter.\nStyle/medium: original high-density hand-painted pixel art with crisp stepped pixel clusters, tactile soaked cloth and strong readable silhouette; intended as a lit 2D billboard in a painterly 3D rain-diorama. Not chibi, not anime, not photorealistic.\nComposition/framing: exact 4 by 2 grid of eight equal unbordered cells, full body centered at identical scale and foot baseline. Same neutral alert pose in exact reading order: back/north, back-right/north-east, right/east, front-right/south-east, front/south, front-left/south-west, left/west, back-left/north-west. No text or labels.\nLighting/mood: neutral albedo with cool rain-blue rim and tiny desaturated rust accents; readable midtones.\nConstraints: actual alpha transparency; no ground, no shadow ellipse, no scenery, no cell borders, no text, no logo, no watermark; identical identity, clothing, mask, proportions and palette in every view; original design only.\nAvoid: recognizable existing-game characters, branded styles, skull motifs, glowing eyes, monster anatomy, guns, ornate assassin costume, blood, attack effects, blur or inconsistent identity.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "32-bit ARGB",
+        "alpha": true,
+        "bytes": 2184663,
+        "sha256": "E4C65DE0A604227E11F2A2903E87030A8FD10F5F6528094825BD68DC354582E5"
+      },
+      "atlas": {
+        "columns": 4,
+        "rows": 2,
+        "cell_width": 384,
+        "cell_height": 512,
+        "reading_order": [
+          "north/back",
+          "north-east/back-right",
+          "east/right",
+          "south-east/front-right",
+          "south/front",
+          "south-west/front-left",
+          "west/left",
+          "north-west/back-left"
+        ]
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass",
+        "confirmed": [
+          "eight full-body views in the required 4 by 2 reading order",
+          "consistent masked identity, outfit, scale and foot baseline",
+          "transparent padding with no baked ground or shadow ellipse",
+          "no text, labels, logo or watermark",
+          "original non-branded enemy design with restrained silhouette"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Choir agent directional world-sprite atlas generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "character.greyfen_named_npcs.front.v1",
+      "path": "res://assets/ashen/characters/npcs/greyfen_npc_front_atlas.png",
+      "role": "named_npc_world_sprite_atlas",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-14",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-3142f2a4-c3ac-45b6-85f0-b1484f8e752f.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: production game NPC world-sprite atlas with a genuinely transparent background\nPrimary request: Create eight original full-body Greyfen NPCs in one exact 4 by 2 grid, one character per equal unbordered cell, all facing front in a relaxed neutral standing pose at identical scale and foot baseline. Reading order: (1) Mara, broad-shouldered middle-aged woman warden in practical dark basalt lamellar and worn amber sash; (2) Tamsin, disciplined woman captain in rain-dark mail and blue-grey tabard; (3) Lysa, slim young woman courier with short auburn hair, torn plum cloak and blood-marked courier token; (4) Nessa, older field surgeon in layered green-grey wool with leather medical satchel; (5) Brann, stocky weathered gate commander in brown brigandine carrying no drawn weapon; (6) Kesh, dignified horned Aruun male envoy with swept natural horns, violet-grey travel layers and burnt-orange scarf; (7) Piri, slight teenage signal apprentice with ambiguous heritage, cropped dark hair, blue-grey work coat and brass horn tools; (8) Tomas, anxious middle-aged quartermaster in ochre-brown work clothes with powder dust on sleeves.\nStyle/medium: original high-density hand-painted pixel art with crisp stepped clusters, detailed tactile clothing and strong readable silhouettes; production 2D billboards for a painterly 3D rain-diorama. Not chibi, not anime, not photorealistic.\nComposition/framing: exact 4 by 2 grid of eight equal cells; full bodies centered with generous transparent padding; no cell borders; no text or labels.\nLighting/mood: neutral production albedo with soft cool rain-blue rim and restrained warm ward-amber bounce; readable midtones.\nConstraints: actual alpha transparency; no ground, no shadow ellipse, no scenery, no weapons being used, no text, no logo, no watermark; eight distinct identities and silhouettes; original designs only.\nAvoid: recognizable existing-game characters, branded styles, ornate royal costumes, modern clothing, generic duplicate faces, blur, inconsistent scale, elaborate magic effects.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "32-bit ARGB",
+        "alpha": true,
+        "bytes": 2305528,
+        "sha256": "841593482E8464574657F7DA3BB1008342AB0D74E227F55F3A56433F6FA5BC73"
+      },
+      "atlas": {
+        "columns": 4,
+        "rows": 2,
+        "cell_width": 384,
+        "cell_height": 512,
+        "reading_order": [
+          "mara",
+          "tamsin",
+          "lysa",
+          "nessa",
+          "brann",
+          "kesh",
+          "piri",
+          "tomas"
+        ]
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass",
+        "confirmed": [
+          "eight distinct full-body NPCs in the required 4 by 2 reading order",
+          "consistent scale, front-facing pose and foot baseline",
+          "transparent padding with no baked ground or shadow ellipse",
+          "no text, labels, logo or watermark",
+          "original cast designs with distinct silhouettes and material accents"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Greyfen named-NPC world-sprite atlas generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "portrait.greyfen_named_cast.v1",
+      "path": "res://assets/ashen/portraits/greyfen_portrait_atlas.png",
+      "role": "dialogue_portrait_atlas",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-14",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-eb1c1279-28de-419c-83f3-3d748a7479db.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: production dialogue portrait atlas with a genuinely transparent background\nPrimary request: Create ten original Greyfen waist-up dialogue portraits in an exact 5 by 2 grid, one subject per equal unbordered cell, all at matching scale and three-quarter pose. Reading order: Evan, vulnerable barefoot time-returned young man in ash-grey linen; Mara, formidable middle-aged woman warden with dark basalt armor and amber sash; Tamsin, disciplined woman captain in blue-grey mail; Lysa, injured auburn-haired young courier in torn plum cloak; Nessa, compassionate older field surgeon in green-grey wool; Brann, weathered stocky gate commander in brown brigandine; Kesh, dignified horned Aruun male envoy with swept natural horns, violet-grey layers and orange scarf; Piri, slight teenage signal apprentice with cropped dark hair and blue-grey work coat; Tomas, anxious middle-aged powder-dusted quartermaster in ochre work clothes; Corvin, severe refined dark-haired male intelligence buyer in black raincoat with a narrow silver lens.\nStyle/medium: original high-density painterly pixel-art portraiture with crisp stepped edges, expressive faces, tactile wet fabric and elegant silhouette; for a sophisticated dark-fantasy 2.5D dialogue UI. Not chibi, not anime, not photorealistic.\nComposition/framing: exact 5 by 2 grid; waist-up; matching eye line and scale; subtle three-quarter poses facing inward; generous transparent padding; no cell borders; no text or labels.\nLighting/mood: cool rain-blue key light with restrained ward-amber rim; humane, tense, readable midtones.\nConstraints: actual alpha transparency; no scenery, no frames, no text, no logos, no watermark; ten distinct consistent identities; original designs only.\nAvoid: recognizable existing-game characters, branded styles, duplicate faces, glamour posing, elaborate magic effects, excessive armor ornament, blur, cut-off heads or hands.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "32-bit ARGB",
+        "alpha": true,
+        "bytes": 3282757,
+        "sha256": "75F35FEC45ABFDE4DB1EDA027873C9883D88A9CF7137369A9C536ECA9B197770"
+      },
+      "atlas": {
+        "columns": 5,
+        "rows": 2,
+        "cell_width": 307.2,
+        "cell_height": 512,
+        "reading_order": [
+          "evan",
+          "mara",
+          "tamsin",
+          "lysa",
+          "nessa",
+          "brann",
+          "kesh",
+          "piri",
+          "tomas",
+          "corvin"
+        ]
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass",
+        "confirmed": [
+          "ten distinct waist-up portraits in the required 5 by 2 reading order",
+          "matching scale, eye line and inward three-quarter presentation",
+          "transparent padding suitable for square UI crops",
+          "no text, borders, logo or watermark",
+          "original cast designs remain legible at dialogue-panel scale"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Greyfen named-cast dialogue portrait atlas generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    }
+  ]
+}
