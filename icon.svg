@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="night" x1="62" y1="34" x2="444" y2="478" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172a34"/>
+      <stop offset="0.5" stop-color="#0c1820"/>
+      <stop offset="1" stop-color="#071016"/>
+    </linearGradient>
+    <linearGradient id="fen" x1="256" y1="312" x2="256" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#31565a"/>
+      <stop offset="1" stop-color="#101d24"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="256" y1="170" x2="256" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd58b"/>
+      <stop offset="0.48" stop-color="#db9245"/>
+      <stop offset="1" stop-color="#713a25"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="translate(256 265) rotate(90) scale(142)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f1ad55" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#f1ad55" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <clipPath id="frame">
+      <rect x="24" y="24" width="464" height="464" rx="100"/>
+    </clipPath>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="#060d12"/>
+  <rect x="24" y="24" width="464" height="464" rx="100" fill="url(#night)" stroke="#6b807f" stroke-width="8"/>
+
+  <g clip-path="url(#frame)">
+    <circle cx="377" cy="121" r="72" fill="#b8c4be" opacity=".11"/>
+    <circle cx="398" cy="104" r="66" fill="#11212a"/>
+    <path d="M-22 366C67 326 131 349 202 327c87-28 153-2 332-54v241H-22V366Z" fill="url(#fen)"/>
+    <path d="M-18 403c95-36 167 22 259-10 90-31 178-3 297-50" fill="none" stroke="#507b78" stroke-width="7" opacity=".34"/>
+    <path d="M-8 438c108-26 168 22 276-7 85-22 154 2 267-36" fill="none" stroke="#76908a" stroke-width="4" opacity=".2"/>
+
+    <ellipse cx="256" cy="270" rx="138" ry="137" fill="url(#halo)" filter="url(#soft)"/>
+
+    <!-- Greyfen gate: an austere, asymmetrical frontier silhouette. -->
+    <path d="M112 348V190h43v-37h59v47h28v-72h56v63h42v-35h61v192H112Z" fill="#080f15" stroke="#6c7d7d" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M130 330V207h48v-35h20v176m62 0V150h21v198m77 0V176h21v172" fill="none" stroke="#293b42" stroke-width="8" opacity=".9"/>
+    <path d="M203 348V282c0-36 23-62 53-62s53 26 53 62v66H203Z" fill="#14252b" stroke="#87928c" stroke-width="8"/>
+    <path d="M220 348v-61c0-24 15-43 36-43s36 19 36 43v61h-72Z" fill="#071014"/>
+
+    <!-- Amber ward flame: the icon's readable focal point at small sizes. -->
+    <path d="M256 191c-6 35-36 45-36 83 0 24 16 46 36 46s36-22 36-46c0-25-15-43-23-58-5 19-12 26-18 31 2-19 9-35 5-56Z" fill="url(#amber)" stroke="#ffd89a" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M257 253c-3 17-16 23-16 39 0 11 7 19 16 19s16-8 16-19c0-12-7-20-11-28-2 8-5 12-8 14 0-9 4-17 3-25Z" fill="#fff0bf"/>
+
+    <!-- Split ash branches turn the fortress into a compact heraldic mark. -->
+    <path d="M95 374c48-31 75-68 89-112m-89 112c29-5 55-1 76 12m-35-72c-11-20-13-40-8-61m25 35c19-7 33-19 43-36M417 374c-48-31-75-68-89-112m89 112c-29-5-55-1-76 12m35-72c11-20 13-40 8-61m-25 35c-19-7-33-19-43-36" fill="none" stroke="#9eaaa1" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M106 348c-17-8-29-22-37-42 23-1 40 8 50 27m34-58c-13-14-18-32-17-53 22 9 35 23 40 43m230 83c17-8 29-22 37-42-23-1-40 8-50 27m-34-58c13-14 18-32 17-53-22 9-35 23-40 43" fill="#597270" stroke="#9eaaa1" stroke-width="5" stroke-linejoin="round"/>
+
+    <path d="M71 391h370" stroke="#c09459" stroke-width="7" stroke-linecap="round" opacity=".7"/>
+    <path d="M112 415c94 18 194 18 288 0" fill="none" stroke="#78918c" stroke-width="5" stroke-linecap="round" opacity=".5"/>
+  </g>
+
+  <rect x="36" y="36" width="440" height="440" rx="89" fill="none" stroke="#d6c49d" stroke-width="3" opacity=".4"/>
+</svg>
