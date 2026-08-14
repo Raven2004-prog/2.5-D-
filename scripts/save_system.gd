@@ -8,15 +8,18 @@ signal save_completed(path: String)
 signal save_failed(path: String, message: String)
 signal save_loaded(data: Dictionary)
 signal save_reset(path: String)
+signal legacy_backup_created(path: String)
 
 const CURRENT_SAVE_VERSION := 1
 const SAVE_FORMAT := "ash_at_greyfen_save"
 const DEFAULT_SAVE_PATH := "user://ash_at_greyfen_save.json"
+const LEGACY_BACKUP_SUFFIX := ".v1-backup"
 
 @export_range(5.0, 600.0, 1.0) var autosave_interval_seconds := 45.0
 
 var save_path := DEFAULT_SAVE_PATH
 var last_error := ""
+var last_legacy_backup_path := ""
 
 var _autosave_enabled := false
 var _autosave_elapsed := 0.0
@@ -72,6 +75,12 @@ func save_game(state: Dictionary, path_override: String = "") -> bool:
 	var resolved_path := _resolve_path(path_override)
 	if not _is_safe_save_path(resolved_path):
 		_set_error(resolved_path, "Save paths must use the user:// location.")
+		return false
+	# Payload-schema migration is owned by AshGameState, while SaveSystem owns
+	# the physical file. Before the first V2 write, preserve the exact V1 JSON
+	# envelope as a durable recovery copy. Failure aborts the replacement, so the
+	# legacy journey remains untouched.
+	if not _preserve_legacy_payload_before_upgrade(resolved_path, state):
 		return false
 
 	var envelope := {
@@ -225,6 +234,62 @@ func _write_atomic(path: String, contents: String) -> bool:
 		return false
 	if FileAccess.file_exists(backup_path):
 		DirAccess.remove_absolute(backup_path)
+	return true
+
+
+func _preserve_legacy_payload_before_upgrade(path: String, next_state: Dictionary) -> bool:
+	if not FileAccess.file_exists(path):
+		return true
+	var next_schema: Variant = next_state.get("schema_version", -1)
+	if not _is_finite_number(next_schema):
+		return true
+	var next_schema_number := float(next_schema)
+	if next_schema_number != floorf(next_schema_number) or next_schema_number < 2.0:
+		return true
+
+	var current_file := FileAccess.open(path, FileAccess.READ)
+	if current_file == null:
+		_set_error(path, "Could not read the legacy save before migration (error %s)." % FileAccess.get_open_error())
+		return false
+	var original_json := current_file.get_as_text()
+	current_file.close()
+
+	var parser := JSON.new()
+	if parser.parse(original_json) != OK or not parser.data is Dictionary:
+		# A malformed or unrelated file is never treated as a migratable V1 save.
+		# Normal atomic replacement behavior remains available to explicit callers.
+		return true
+	var envelope: Dictionary = parser.data
+	if str(envelope.get("format", "")) != SAVE_FORMAT or not envelope.get("data") is Dictionary:
+		return true
+	var old_state: Dictionary = envelope["data"]
+	var old_schema: Variant = old_state.get("schema_version", -1)
+	if not _is_finite_number(old_schema) or float(old_schema) != 1.0:
+		return true
+
+	var backup_path := path + LEGACY_BACKUP_SUFFIX
+	if FileAccess.file_exists(backup_path):
+		last_legacy_backup_path = backup_path
+		return true
+	var absolute_backup := ProjectSettings.globalize_path(backup_path)
+	var directory_error := DirAccess.make_dir_recursive_absolute(absolute_backup.get_base_dir())
+	if directory_error != OK:
+		_set_error(path, "Could not prepare the V1 recovery-backup folder (error %s)." % directory_error)
+		return false
+	var backup_file := FileAccess.open(absolute_backup, FileAccess.WRITE)
+	if backup_file == null:
+		_set_error(path, "Could not create the V1 recovery backup (error %s)." % FileAccess.get_open_error())
+		return false
+	backup_file.store_string(original_json)
+	backup_file.flush()
+	var write_error := backup_file.get_error()
+	backup_file.close()
+	if write_error != OK:
+		DirAccess.remove_absolute(absolute_backup)
+		_set_error(path, "Could not finish the V1 recovery backup (error %s)." % write_error)
+		return false
+	last_legacy_backup_path = backup_path
+	legacy_backup_created.emit(backup_path)
 	return true
 
 

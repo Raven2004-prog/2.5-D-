@@ -16,7 +16,7 @@ import random
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 
 SEED = 472013
@@ -24,6 +24,23 @@ ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "assets" / "ashen" / "environment" / "greyfen_diorama.glb"
 BLEND_OUTPUT = ROOT / "source_art" / "blender" / "greyfen_diorama.blend"
 random.seed(SEED)
+
+# The authoring calls below deliberately use the same coordinate convention as
+# Godot: X east/west, Y vertical, Z north/south. Blender itself is Z-up, and its
+# glTF Y-up exporter maps Blender (X, Y, Z) to Godot/glTF (X, Z, -Y). Rotate the
+# finished authored scene once at the generator boundary so the exported GLB
+# recovers the exact logical coordinates supplied below:
+#
+#   Godot logical (x, y, z) -> Blender native (x, -z, y)
+#   Blender glTF (x, -z, y) -> Godot runtime (x, y, z)
+GODOT_Y_UP_TO_BLENDER_Z_UP = Matrix(
+    (
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, 0.0, -1.0, 0.0),
+        (0.0, 1.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+)
 
 
 def reset_scene() -> None:
@@ -373,7 +390,51 @@ def configure_world():
     scene.unit_settings.system = "METRIC"
     scene.unit_settings.scale_length = 1.0
     scene["ashen_diorama_seed"] = SEED
-    scene["coordinate_contract"] = "X east-west, Y up, Z north-south; one unit = one metre"
+    scene["coordinate_contract"] = (
+        "Authoring API uses Godot X/Y-up/Z metres; generator boundary stores "
+        "Blender-native X/-Z/Z-up before a standard glTF Y-up export"
+    )
+
+
+def apply_godot_to_blender_axis_contract() -> None:
+    """Convert the completed logical Y-up scene to Blender-native Z-up once."""
+    # Flush locations assigned to the final batch of empties before reading
+    # matrix_world; otherwise unevaluated anchors can still appear at identity.
+    bpy.context.view_layer.update()
+    for obj in bpy.context.scene.objects:
+        if obj.parent is None:
+            obj.matrix_world = GODOT_Y_UP_TO_BLENDER_Z_UP @ obj.matrix_world
+    bpy.context.view_layer.update()
+    bpy.context.scene["axis_conversion_applied"] = True
+
+
+def validate_blender_axis_contract() -> None:
+    """Fail generation before export if the scene is broad in the wrong plane."""
+    expected_anchor_locations = {
+        "anchor__arrival": Vector((-111.0, -18.0, 0.35)),
+        "anchor__mara_keep": Vector((-4.0, 5.0, 0.35)),
+        "anchor__stage_finale": Vector((34.0, -18.0, 0.35)),
+        "anchor__water_gate_wheel": Vector((91.0, -27.0, 0.35)),
+    }
+    for object_name, expected in expected_anchor_locations.items():
+        actual = bpy.data.objects[object_name].matrix_world.translation
+        assert (actual - expected).length <= 1e-5, (
+            f"Axis contract mismatch for {object_name}: expected {tuple(expected)}, "
+            f"got {tuple(actual)}"
+        )
+
+    ground = bpy.data.objects["GreyfenGround-colonly"]
+    ground_corners = [ground.matrix_world @ Vector(corner) for corner in ground.bound_box]
+    ground_dimensions = Vector(
+        (
+            max(point.x for point in ground_corners) - min(point.x for point in ground_corners),
+            max(point.y for point in ground_corners) - min(point.y for point in ground_corners),
+            max(point.z for point in ground_corners) - min(point.z for point in ground_corners),
+        )
+    )
+    assert ground_dimensions.x >= 224.9, f"Ground X extent collapsed: {ground_dimensions.x}"
+    assert ground_dimensions.y >= 124.9, f"Ground depth is not on Blender Y: {ground_dimensions.y}"
+    assert ground_dimensions.z <= 0.51, f"Ground is not thin on Blender Z: {ground_dimensions.z}"
 
 
 reset_scene()
@@ -547,6 +608,9 @@ for name, loc in {
     "shortcut_refuge": (61, 0.35, 34),
 }.items():
     empty_anchor(name, loc, WORLD)
+
+apply_godot_to_blender_axis_contract()
+validate_blender_axis_contract()
 
 OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 BLEND_OUTPUT.parent.mkdir(parents=True, exist_ok=True)

@@ -10,8 +10,8 @@ const MAX_FOV := 32.0
 
 @export var target_path: NodePath
 @export_range(MIN_FOV, MAX_FOV, 0.5) var field_of_view := 22.0
-@export_range(4.0, 24.0, 0.25) var follow_distance := 13.5
-@export_range(3.0, 20.0, 0.25) var camera_height := 10.5
+@export_range(12.0, 52.0, 0.25) var follow_distance := 35.0
+@export_range(8.0, 40.0, 0.25) var camera_height := 26.25
 @export_range(-180.0, 180.0, 0.5) var yaw_degrees := 45.0
 @export_range(0.0, 3.0, 0.05) var focus_height := 0.9
 @export_range(0.0, 16.0, 0.25) var follow_sharpness := 7.0
@@ -81,6 +81,21 @@ func get_ground_forward() -> Vector3:
 func get_ground_right() -> Vector3:
 	var right := get_ground_forward().cross(Vector3.UP).normalized()
 	return right if right.length_squared() > 0.0001 else Vector3.RIGHT
+
+
+func get_nominal_pitch_degrees() -> float:
+	return rad_to_deg(atan2(camera_height - focus_height, follow_distance))
+
+
+func estimate_actor_pixel_height(viewport_height: float = 1080.0, actor_height: float = 1.72) -> float:
+	# Perspective projection at the rig's nominal focus distance. This is a
+	# production framing contract, not a substitute for screenshot QA.
+	var vertical_distance := camera_height - focus_height
+	var focus_distance := Vector2(follow_distance, vertical_distance).length()
+	var half_fov := deg_to_rad(clampf(field_of_view, MIN_FOV, MAX_FOV) * 0.5)
+	if viewport_height <= 0.0 or actor_height <= 0.0 or focus_distance <= 0.0 or half_fov <= 0.0:
+		return 0.0
+	return actor_height * viewport_height / (2.0 * focus_distance * tan(half_fov))
 
 
 func snap_to_target() -> void:

@@ -3,6 +3,7 @@ exports/
 builds/
 *.tmp
 *.bak
+*.blend1
 *.log
 movie*.png
 movie*.avi

@@ -9,6 +9,30 @@
     "unmanifested_release_assets_allowed": false,
     "generated_concepts_are_production_textures": false
   },
+  "production_toolchain": {
+    "pinned_date": "2026-08-15",
+    "note": "Portable source-art tools pinned for later manual cleanup and authored production work. The generated PNG assets below came directly from the recorded Codex image-generation outputs and were not modified with these applications.",
+    "tools": [
+      {
+        "name": "Blender",
+        "version": "4.5.12 LTS",
+        "portable_executable": "D:/Game dev experiment/Toolchain/apps/blender-4.5.12-windows-x64/blender.exe",
+        "download_archive_sha256": "317EF64E7A2C3CC79EC810C766AE9828AFF865BEA78039DC695B3F1118C34B4F"
+      },
+      {
+        "name": "Krita",
+        "version": "6.0.2",
+        "portable_executable": "D:/Game dev experiment/Toolchain/apps/krita-6.0.2/krita-x64-6.0.2/bin/krita.exe",
+        "download_archive_sha256": "80EB339BB302D8BE2015D8027BE93F5D4EFEA345169BECD20963167279E61B57"
+      },
+      {
+        "name": "Pixelorama",
+        "version": "1.2.0",
+        "portable_executable": "D:/Game dev experiment/Toolchain/apps/pixelorama-1.2/Pixelorama-Windows-64bit/Pixelorama.exe",
+        "download_archive_sha256": "1DDC65930DDD435612519E293D1927849D4D4C18928A856B5BD4F058FE2F4A72"
+      }
+    ]
+  },
   "assets": [
     {
       "id": "concept.greyfen_five_district_environment.v1",
@@ -293,6 +317,94 @@
         "third_party_inputs": false,
         "commissioned_for_project": true,
         "attribution_text": "Original Greyfen named-cast dialogue portrait atlas generated for Ash Witness: The Same Rain on 2026-08-14 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "ui.greyfen_folio_map.v1",
+      "path": "res://assets/ashen/ui/greyfen_folio_map.png",
+      "role": "memory_folio_world_map",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-15",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-e8b838fc-4639-488c-96f0-a761def28afa.png"
+      },
+      "prompt": "Use case: stylized-concept\nAsset type: in-game Greyfen memory-folio map, landscape raster illustration\nPrimary request: Create an original hand-illustrated map of the rainbound frontier fortress Greyfen and its marsh approaches for the Ashen Diorama game. Show one coherent continuous hub arranged west to east in exactly five readable regions: Anchor Hollow and Fen Road; West Gate and Barracks; Inner Bailey with a modest frontier Keep, Oathstone and Signal Yard; Granary with Refuge Row and field Clinic; Water Gate with Drains, Tunnel mouth and Fen Edge. Include three alternative walking routes, four visually plausible shortcut passages, causeways, walls, stairs, narrow bridges, shallow marsh channels, ward lantern symbols, and distinct landmark silhouettes. No labels—the game will overlay localized names.\nStyle/medium: bespoke dark-fantasy cartography, hand-inked charcoal and iron-gall lines over rain-stained ash-grey parchment, painterly watercolor washes, subtle pixel-grain texture that belongs beside high-density pixel-painted actors in a 3D diorama; original indie visual identity, not an imitation of any named game or studio.\nComposition/framing: wide 3:2 map filling the canvas, north-up oblique plan view, a decorative but restrained basalt-and-bronze border, clear paths and district separation, generous safe margin for UI cropping.\nLighting/mood: cold rain-blue and fen-teal washes, ward-amber refuge points, ash-white anomalous route marks, tense but beautiful.\nConstraints: exactly five coherent regions in one connected map; paths must remain legible at 1080p; no characters, no UI buttons, no logos, no words, no letters, no numbers, no watermark, no recognizable third-party compositions or assets.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "24-bit RGB",
+        "alpha": false,
+        "bytes": 3877810,
+        "sha256": "334EAB6A1F33479534F482651F3B5C7B0AEF4E745244B0F65793008D5F2DB135"
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass",
+        "confirmed": [
+          "one connected five-region fortress-and-fen map",
+          "three route families and multiple shortcut passages remain readable",
+          "distinct west gate, keep, oathstone, granary, refuge, clinic, water gate and tunnel silhouettes",
+          "cold rain washes, ward-amber route lights and ash-white anomaly marks follow the color script",
+          "no words, labels, characters, logo or watermark"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Greyfen memory-folio map generated for Ash Witness: The Same Rain on 2026-08-15 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
+      }
+    },
+    {
+      "id": "ui.ashen_ornament_atlas.v1",
+      "path": "res://assets/ashen/ui/ashen_ui_ornament_atlas.png",
+      "role": "modular_interface_ornament_atlas",
+      "status": "selected",
+      "release_use": "runtime_production_asset",
+      "created_date": "2026-08-15",
+      "source": {
+        "kind": "ai_generated_original",
+        "tool": "Codex built-in image generation through the imagegen skill",
+        "mode": "default built-in tool mode",
+        "model": "not exposed by built-in mode",
+        "input_images": [],
+        "original_output": "C:/Users/kusha/.codex/generated_images/01a000f5-99e6-7b43-9c29-b78956dbfa79/exec-f0dbebfb-5f01-4000-8131-100f1f0d5020.png"
+      },
+      "prompt": "Use case: ui-mockup\nAsset type: production-ready transparent game UI ornament atlas\nPrimary request: Create an original modular interface ornament sheet for the Ashen Diorama dark-fantasy game. Include, as separate non-overlapping elements: one wide dialogue-frame border, one medium evidence-card border, one compact notification-frame border, four interchangeable corner flourishes, two thin horizontal dividers, a circular ward-emblem surround, two narrow condition-bar surrounds, and small thread/evidence marker surrounds. All centers must remain empty and transparent so Godot can place text and bars beneath them.\nStyle/medium: finely painted basalt, rain-dark iron, oxidized bronze inlay, restrained ash filigree and tiny ward-amber accents; subtle high-density pixel-grain finish, elegant frontier craftsmanship, readable and professional, original identity with no imitation of a named game or studio.\nComposition/framing: organized sprite-sheet grid on a genuinely transparent background, generous clear spacing between assets, crisp straight reusable edges, symmetrical borders, front-on orthographic UI artwork, no perspective.\nLighting/mood: cool rain-blue edge light with sparse warm amber glints; restrained contrast, no bloom.\nConstraints: transparent background with preserved alpha; no words, no letters, no numbers, no logos, no characters, no parchment map, no opaque panel fills, no watermark, no recognizable third-party motifs. Keep every element fully inside the canvas and separated for clean atlas slicing.",
+      "file": {
+        "format": "PNG",
+        "width": 1536,
+        "height": 1024,
+        "color": "32-bit ARGB",
+        "alpha": true,
+        "bytes": 2152292,
+        "sha256": "0F5AA026C18E53F4FF32C8BC345AA00ED0BA56DC39DE1AC9B5BF7B14008E53B7"
+      },
+      "inspection": {
+        "date": "2026-08-15",
+        "result": "pass_with_slicing_notes",
+        "confirmed": [
+          "transparent corners and preserved alpha",
+          "separated dialogue, evidence, notification, divider, emblem and condition-bar ornaments",
+          "consistent basalt, iron, bronze and ward-amber material language",
+          "no text, logo, character or watermark"
+        ],
+        "production_notes": [
+          "slice source regions non-destructively in Godot AtlasTexture resources",
+          "retain the transparent centers and place readable flat-color panels beneath",
+          "do not scale thin borders below their authored minimum thickness"
+        ]
+      },
+      "rights_and_attribution": {
+        "third_party_inputs": false,
+        "commissioned_for_project": true,
+        "attribution_text": "Original Ashen Diorama interface ornament atlas generated for Ash Witness: The Same Rain on 2026-08-15 using Codex built-in image generation through the imagegen skill, default built-in tool mode."
       }
     }
   ]

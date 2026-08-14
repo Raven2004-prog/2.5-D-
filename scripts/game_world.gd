@@ -116,7 +116,7 @@ func _build_world() -> void:
 	add_child(rain_canvas)
 	rain = RainScene.new()
 	rain.reduced_motion = bool(game_state.settings.get("reduce_motion", false))
-	rain.intensity = float(game_state.settings.get("rain_intensity", 1.0))
+	rain.intensity = clampf(float(game_state.settings.get("weather_density", game_state.settings.get("rain_intensity", 1.0))), 0.25, 1.35)
 	rain_canvas.add_child(rain)
 
 	ui = UIScene.new()
@@ -1006,15 +1006,26 @@ func _on_pause_requested() -> void:
 	get_tree().paused = true
 
 
-func _on_setting_changed(key: String, enabled: bool) -> void:
-	game_state.settings[key] = enabled
+func _on_setting_changed(key: String, value: Variant) -> void:
+	# The legacy narrative director persists the complete settings dictionary,
+	# including display options that only the 3D wrapper renders. Runtime effects
+	# below are deliberately limited to values the 2D presentation understands.
+	game_state.settings[key] = value
 	if key == "reduce_motion":
+		var enabled := bool(value)
 		rain.reduced_motion = enabled
 		camera.position_smoothing_enabled = not enabled
 	elif key == "master_audio":
+		var enabled := bool(value)
 		var audio_manager := get_node_or_null("/root/AudioManager")
 		if audio_manager and audio_manager.has_method("set_master_enabled"):
 			audio_manager.call("set_master_enabled", enabled)
+			# set_master_enabled(true) restarts the title bed; gameplay keeps only
+			# UI cues here because AshenSoundscape3D owns the world atmosphere.
+			if enabled and audio_manager.has_method("stop_ambience"):
+				audio_manager.call("stop_ambience")
+	elif key == "weather_density" and typeof(value) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value)):
+		rain.intensity = clampf(float(value), 0.25, 1.35)
 	ui.sync_settings(game_state.settings)
 	_autosave()
 

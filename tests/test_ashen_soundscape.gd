@@ -2,11 +2,12 @@ extends SceneTree
 ## Headless contract for the original procedural 3D soundscape. Run with:
 ## Godot --headless --path <project> --script res://tests/test_ashen_soundscape.gd
 
-const SoundscapeScript := preload("res://scripts/ashen_3d/soundscape_3d.gd")
+const SOUNDSCAPE_PATH := "res://scripts/ashen_3d/soundscape_3d.gd"
 
 var _failures := 0
-var _primary: AshenSoundscape3D
-var _mirror: AshenSoundscape3D
+var _soundscape_script: GDScript
+var _primary: Variant
+var _mirror: Variant
 var _target: Node3D
 var _weather_probe: Node
 
@@ -17,10 +18,18 @@ func _initialize() -> void:
 
 func _run_tests() -> void:
 	print("[ashen-soundscape] deterministic synthesis and lifecycle checks")
-	_primary = SoundscapeScript.new()
+	# Load dynamically so a compile failure in the implementation does not also
+	# prevent this SceneTree test from reaching quit(1).
+	var loaded: Resource = load(SOUNDSCAPE_PATH)
+	if not loaded is GDScript or not (loaded as GDScript).can_instantiate():
+		printerr("[ashen-soundscape] FAIL: soundscape script could not compile or instantiate")
+		quit(1)
+		return
+	_soundscape_script = loaded as GDScript
+	_primary = _soundscape_script.new()
 	_primary.name = "PrimarySoundscape"
 	root.add_child(_primary)
-	_mirror = SoundscapeScript.new()
+	_mirror = _soundscape_script.new()
 	_mirror.name = "MirrorSoundscape"
 	root.add_child(_mirror)
 	await process_frame
@@ -45,7 +54,7 @@ func _test_stream_contract() -> void:
 	_expect(_primary.get_loop_ids() == [&"rain", &"fen_wind", &"ward_hum"], "all three authored ambience layers are present")
 	_expect(_primary.get_one_shot_ids() == [&"thunder", &"return", &"finale"], "storm, Return, and finale cues are present")
 	for cue_id: StringName in _primary.get_loop_ids():
-		var stream := _primary.get_loop_stream(cue_id)
+		var stream: AudioStreamWAV = _primary.get_loop_stream(cue_id)
 		_expect(stream != null, "%s loop resolves to an in-memory WAV" % cue_id)
 		if stream == null:
 			continue
@@ -57,7 +66,7 @@ func _test_stream_contract() -> void:
 		_expect(stream.loop_end * 2 == stream.data.size(), "%s loop endpoint covers its complete PCM payload" % cue_id)
 		_expect(stream.data.size() > 22050 * 2, "%s contains more than one second of authored audio" % cue_id)
 	for cue_id: StringName in _primary.get_one_shot_ids():
-		var stream := _primary.get_one_shot_stream(cue_id)
+		var stream: AudioStreamWAV = _primary.get_one_shot_stream(cue_id)
 		_expect(stream != null, "%s cue resolves to an in-memory WAV" % cue_id)
 		if stream == null:
 			continue
@@ -68,12 +77,12 @@ func _test_stream_contract() -> void:
 
 func _test_deterministic_library() -> void:
 	for cue_id: StringName in _primary.get_loop_ids():
-		var first := _primary.get_loop_stream(cue_id)
-		var second := _mirror.get_loop_stream(cue_id)
+		var first: AudioStreamWAV = _primary.get_loop_stream(cue_id)
+		var second: AudioStreamWAV = _mirror.get_loop_stream(cue_id)
 		_expect(first.data == second.data, "%s synthesis is byte-for-byte deterministic" % cue_id)
 	for cue_id: StringName in _primary.get_one_shot_ids():
-		var first := _primary.get_one_shot_stream(cue_id)
-		var second := _mirror.get_one_shot_stream(cue_id)
+		var first: AudioStreamWAV = _primary.get_one_shot_stream(cue_id)
+		var second: AudioStreamWAV = _mirror.get_one_shot_stream(cue_id)
 		_expect(first.data == second.data, "%s one-shot synthesis is byte-for-byte deterministic" % cue_id)
 	_expect(
 		_primary.get_loop_stream(&"rain").data != _primary.get_loop_stream(&"fen_wind").data,
@@ -92,9 +101,9 @@ func _test_settings_and_target() -> void:
 	_primary.set_target(_target)
 	_expect(_primary.get_target() == _target, "the 3D listener/player target is exposed")
 
-	var rain := _primary.get_layer_player(&"rain")
-	var wind := _primary.get_layer_player(&"fen_wind")
-	var ward := _primary.get_layer_player(&"ward_hum")
+	var rain: AudioStreamPlayer = _primary.get_layer_player(&"rain")
+	var wind: AudioStreamPlayer = _primary.get_layer_player(&"fen_wind")
+	var ward: AudioStreamPlayer = _primary.get_layer_player(&"ward_hum")
 	_expect(rain != null and wind != null and ward != null, "each ambience layer owns an inspectable player")
 	_expect(rain.playing and wind.playing and ward.playing, "ambience begins as a layered sound bed")
 
@@ -112,7 +121,7 @@ func _test_settings_and_target() -> void:
 	_expect(_primary.reduced_stimulation, "reduced-flash preference also protects sudden audio timing")
 	_expect(not rain.playing and not wind.playing and not ward.playing, "master disable stops every looping bed")
 
-	var quality_before := _primary.quality
+	var quality_before: String = _primary.quality
 	_expect(not _primary.apply_quality("cinematic-ish"), "unknown quality names are rejected")
 	_expect(_primary.quality == quality_before, "a rejected quality name does not silently mutate settings")
 	_primary.set_master_enabled(true)
@@ -152,7 +161,7 @@ func _test_accessible_lightning_timing() -> void:
 	_expect(_primary.get_lightning_min_interval() >= 12.0, "reduced-stimulation mode lengthens the lightning interval")
 	_expect(not _primary.request_lightning(0.8, 30.0), "overlapping lightning cannot stack sudden thunder peaks")
 
-	var delay := _primary.get_pending_thunder_delay()
+	var delay: float = _primary.get_pending_thunder_delay()
 	_primary._process(delay + 0.01)
 	_expect(triggered.has(&"thunder"), "scheduled thunder becomes the authored thunder one-shot")
 	_expect(_primary.get_pending_thunder_delay() < 0.0, "fired thunder clears its pending timer")
@@ -186,28 +195,30 @@ func _test_weather_binding_and_story_cues() -> void:
 	_expect(story_cues.has(&"return") and story_cues.has(&"finale"), "story cue signals identify both authored events")
 	_expect(not _primary.play_cue(&"downloaded_ambience"), "unknown or external cues cannot enter the library")
 	_primary.unbind_weather_source()
-	_expect(not _primary.bind_weather_source(Node.new()), "nodes without a lightning signal are safely rejected")
+	var invalid_weather := Node.new()
+	_expect(not _primary.bind_weather_source(invalid_weather), "nodes without a lightning signal are safely rejected")
+	invalid_weather.free()
 	await process_frame
 
 
 func _test_positional_landmarks() -> void:
 	_primary.apply_quality("low")
 	var first_position := Vector3(14.0, 2.25, -9.0)
-	var emitter := _primary.register_ward_landmark(&"signal_ward/tower", first_position)
+	var emitter: AudioStreamPlayer3D = _primary.register_ward_landmark(&"signal_ward/tower", first_position)
 	_expect(emitter != null, "a ward landmark creates a positional 3D emitter")
 	if emitter != null:
 		_expect(emitter.stream == _primary.get_loop_stream(&"ward_hum"), "landmark reuses the deterministic ward loop")
 		_expect(emitter.playing, "an enabled landmark begins emitting")
 		_expect(emitter.global_position.is_equal_approx(first_position), "landmark emitter uses authored world coordinates")
 		_expect(emitter.max_distance > 0.0, "landmark hum has bounded spatial falloff")
-		var moved := _primary.register_ward_landmark(&"signal_ward/tower", Vector3(15.0, 2.25, -8.0))
+		var moved: AudioStreamPlayer3D = _primary.register_ward_landmark(&"signal_ward/tower", Vector3(15.0, 2.25, -8.0))
 		_expect(moved == emitter and _primary.get_landmark_emitter_count() == 1, "re-registering a stable landmark ID updates instead of duplicating")
 
 	for index in range(1, _primary.get_max_landmark_emitters()):
 		_primary.register_ward_landmark(StringName("test_ward/%d" % index), Vector3(float(index), 0.5, 0.0))
 	_expect(_primary.get_landmark_emitter_count() == 4, "low quality enforces its positional emitter budget")
 	_expect(_primary.register_ward_landmark(&"test_ward/overflow", Vector3.ZERO) == null, "landmark overflow fails safely")
-	var old_range := emitter.max_distance if emitter != null else 0.0
+	var old_range: float = emitter.max_distance if emitter != null else 0.0
 	_primary.apply_quality("ultra")
 	if emitter != null:
 		_expect(emitter.max_distance > old_range, "quality upgrade expands landmark acoustic range without rebuilding audio")
@@ -227,6 +238,9 @@ func _test_clean_teardown() -> void:
 	_weather_probe.queue_free()
 	await process_frame
 	await process_frame
+	# Give AudioServer one real mix window to drop stopped playback objects. Two
+	# uncapped render frames can elapse too quickly under the Dummy driver.
+	await create_timer(0.12, true, false, true).timeout
 	_expect(soundscape_ref.get_ref() == null and mirror_ref.get_ref() == null, "soundscape services leave the tree cleanly")
 	_expect(rain_ref.get_ref() == null, "owned ambience players are released with the service")
 	_expect(emitter_ref.get_ref() == null, "owned positional emitters are released with the service")

@@ -4,6 +4,7 @@ const TitleScene := preload("res://scripts/title_screen.gd")
 const WorldScene := preload("res://scripts/game_world.gd")
 const StateScene := preload("res://scripts/game_state.gd")
 const AshTheme := preload("res://scripts/ui_theme.gd")
+const VISUAL_QUALITY_IDS := ["high", "medium", "low"]
 
 var title_screen: TitleScreen
 var game_world: GreyfenGameWorld
@@ -13,15 +14,18 @@ var _state_is_persistable := false
 
 
 func _ready() -> void:
-	AudioManager.start_ambience()
+	var audio: Variant = _audio_service()
+	if audio:
+		audio.start_ambience()
 	_prime_title_state_from_save()
 	_show_title()
 
 
 func _prime_title_state_from_save() -> void:
-	if not SaveSystem.can_continue():
+	var saves: Variant = _save_service()
+	if saves == null or not saves.can_continue():
 		return
-	var data: Dictionary = SaveSystem.continue_game()
+	var data: Dictionary = saves.continue_game()
 	if data.is_empty():
 		return
 	var saved_state := StateScene.new()
@@ -33,12 +37,20 @@ func _prime_title_state_from_save() -> void:
 func _show_title() -> void:
 	get_tree().paused = false
 	_clear_content()
-	SaveSystem.set_autosave_enabled(false)
+	var saves: Variant = _save_service()
+	var audio: Variant = _audio_service()
+	if saves:
+		saves.set_autosave_enabled(false)
 	title_screen = TitleScene.new()
-	title_screen.continue_available = SaveSystem.can_continue()
+	title_screen.continue_available = bool(saves.can_continue()) if saves else false
+	var title_audio_enabled := bool(audio.master_enabled) if audio else true
 	if state:
 		title_screen.reduce_motion = bool(state.settings.get("reduce_motion", false))
-		AudioManager.set_master_enabled(bool(state.settings.get("master_audio", true)))
+		title_audio_enabled = bool(state.settings.get("master_audio", true))
+	if audio:
+		audio.set_master_enabled(title_audio_enabled)
+		if title_audio_enabled:
+			audio.start_ambience()
 	title_screen.new_game_requested.connect(_start_new_game)
 	title_screen.continue_requested.connect(_continue_game)
 	title_screen.settings_requested.connect(_show_settings)
@@ -48,8 +60,11 @@ func _show_title() -> void:
 
 
 func _start_new_game() -> void:
-	if SaveSystem.can_continue():
-		AudioManager.play_ui("focus")
+	var saves: Variant = _save_service()
+	var audio: Variant = _audio_service()
+	if saves and saves.can_continue():
+		if audio:
+			audio.play_ui("focus")
 		var panel := _make_modal("BEGIN A NEW ACCOUNT?", "This will replace the current journey after a safe reset. The existing save is left untouched until you confirm.")
 		var box := panel.get_meta("content") as VBoxContainer
 		var confirm := Button.new()
@@ -69,9 +84,12 @@ func _start_new_game() -> void:
 
 
 func _begin_new_game() -> void:
-	AudioManager.play_ui("confirm")
+	var audio: Variant = _audio_service()
+	var saves: Variant = _save_service()
+	if audio:
+		audio.play_ui("confirm")
 	var carried_settings: Dictionary = state.settings.duplicate(true) if state else {}
-	if not SaveSystem.reset_save():
+	if saves == null or not saves.reset_save():
 		_show_message("SAVE COULD NOT BE CLEARED", "The existing journey is still intact. Greyfen will not start a new account until that file can be safely replaced.")
 		return
 	state = StateScene.new()
@@ -82,9 +100,12 @@ func _begin_new_game() -> void:
 
 
 func _continue_game() -> void:
-	AudioManager.play_ui("confirm")
+	var audio: Variant = _audio_service()
+	var saves: Variant = _save_service()
+	if audio:
+		audio.play_ui("confirm")
 	var selected_settings: Dictionary = state.settings.duplicate(true) if state else {}
-	var data: Dictionary = SaveSystem.continue_game()
+	var data: Dictionary = saves.continue_game() if saves else {}
 	if data.is_empty():
 		_show_message("THE THREAD IS BROKEN", "The remembered journey could not be opened. A new game remains safe to begin.")
 		return
@@ -101,18 +122,27 @@ func _continue_game() -> void:
 
 func _start_world() -> void:
 	_clear_content()
-	AudioManager.set_master_enabled(bool(state.settings.get("master_audio", true)))
+	var audio: Variant = _audio_service()
+	var saves: Variant = _save_service()
+	if audio:
+		audio.set_master_enabled(bool(state.settings.get("master_audio", true)))
+	# Keep the lightweight title ambience and UI cue palette separate. The 3D
+	# wrapper owns its richer AshenSoundscape while gameplay is active.
+	if audio:
+		audio.stop_ambience()
 	game_world = WorldScene.new()
 	game_world.configure(state)
 	game_world.autosave_requested.connect(_save_snapshot)
 	game_world.story_completed.connect(_show_ending)
 	game_world.return_to_title_requested.connect(_show_title)
 	add_child(game_world)
-	SaveSystem.configure_autosave(_current_snapshot, 45.0, true)
+	if saves:
+		saves.configure_autosave(_current_snapshot, 45.0, true)
 
 
 func _save_snapshot(data: Dictionary) -> void:
-	var saved := SaveSystem.autosave(data)
+	var saves: Variant = _save_service()
+	var saved := bool(saves.autosave(data)) if saves else false
 	_state_is_persistable = saved or _state_is_persistable
 	if game_world and is_instance_valid(game_world) and game_world.ui:
 		if saved:
@@ -130,22 +160,72 @@ func _current_snapshot() -> Dictionary:
 
 
 func _show_settings() -> void:
-	AudioManager.play_ui("focus")
-	var panel := _make_modal("SETTINGS", "Make Greyfen comfortable to read and watch.")
+	var audio: Variant = _audio_service()
+	if audio:
+		audio.play_ui("focus")
+	var panel := _make_modal("SETTINGS", "Tune the diorama, storm, and comfort settings. Story and evidence never change with quality.")
+	panel.name = "SettingsPanel"
+	panel.custom_minimum_size = Vector2(640, 600)
 	var box := panel.get_meta("content") as VBoxContainer
+	box.add_theme_constant_override("separation", 7)
+	var display_heading := Label.new()
+	display_heading.text = "DISPLAY & ATMOSPHERE"
+	display_heading.theme_type_variation = "AshKicker"
+	box.add_child(display_heading)
+	var quality_row := _make_title_setting_row("VISUAL QUALITY")
+	var quality := _make_title_quality_selector()
+	quality.name = "VisualQuality"
+	quality.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_select_title_quality(quality, str(state.settings.get("visual_quality", "high")) if state else "high")
+	quality.item_selected.connect(_title_quality_selected.bind(quality))
+	quality_row.add_child(quality)
+	box.add_child(quality_row)
+	var depth_of_field := CheckBox.new()
+	depth_of_field.name = "DepthOfField"
+	depth_of_field.text = "Depth of field"
+	depth_of_field.button_pressed = bool(state.settings.get("depth_of_field", true)) if state else true
+	depth_of_field.toggled.connect(_setting_toggled.bind("depth_of_field"))
+	box.add_child(depth_of_field)
+	var weather_row := _make_title_setting_row("WEATHER DENSITY")
+	var weather := HSlider.new()
+	weather.name = "WeatherDensity"
+	weather.min_value = 0.25
+	weather.max_value = 1.35
+	weather.step = 0.05
+	weather.value = clampf(float(state.settings.get("weather_density", 1.0)), 0.25, 1.35) if state else 1.0
+	weather.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	weather.custom_minimum_size.x = 220
+	weather_row.add_child(weather)
+	var weather_value := Label.new()
+	weather_value.name = "WeatherDensityValue"
+	weather_value.custom_minimum_size.x = 52
+	weather_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	weather_value.theme_type_variation = "AshHint"
+	weather_value.text = _weather_density_text(weather.value)
+	weather_row.add_child(weather_value)
+	weather.value_changed.connect(_title_weather_changed.bind(weather_value))
+	box.add_child(weather_row)
+	var comfort_heading := Label.new()
+	comfort_heading.text = "ACCESSIBILITY & SOUND"
+	comfort_heading.theme_type_variation = "AshKicker"
+	box.add_child(comfort_heading)
 	var reduce_motion := CheckBox.new()
+	reduce_motion.name = "ReduceMotion"
 	reduce_motion.text = "Reduce camera and interface motion"
 	reduce_motion.button_pressed = bool(state.settings.get("reduce_motion", false)) if state else false
 	reduce_motion.toggled.connect(_setting_toggled.bind("reduce_motion"))
 	box.add_child(reduce_motion)
 	var reduce_flash := CheckBox.new()
+	reduce_flash.name = "ReduceFlash"
 	reduce_flash.text = "Reduce Return and lightning flashes"
 	reduce_flash.button_pressed = bool(state.settings.get("reduce_flash", false)) if state else false
 	reduce_flash.toggled.connect(_setting_toggled.bind("reduce_flash"))
 	box.add_child(reduce_flash)
 	var sound := CheckBox.new()
+	sound.name = "MasterAudio"
 	sound.text = "Procedural ambience and interface sound"
-	sound.button_pressed = bool(state.settings.get("master_audio", AudioManager.master_enabled)) if state else AudioManager.master_enabled
+	var audio_enabled := bool(audio.master_enabled) if audio else true
+	sound.button_pressed = bool(state.settings.get("master_audio", audio_enabled)) if state else audio_enabled
 	sound.toggled.connect(_sound_toggled)
 	box.add_child(sound)
 	var note := Label.new()
@@ -157,32 +237,82 @@ func _show_settings() -> void:
 
 
 func _setting_toggled(enabled: bool, key: String) -> void:
-	if state == null:
-		state = StateScene.new()
-	state.settings[key] = enabled
-	if title_screen and key == "reduce_motion":
-		title_screen.reduce_motion = enabled
-	AudioManager.play_ui("confirm")
-	_persist_title_preferences()
+	_set_title_setting(key, enabled)
 
 
 func _sound_toggled(enabled: bool) -> void:
+	_set_title_setting("master_audio", enabled)
+
+
+func _set_title_setting(key: String, value: Variant) -> void:
 	if state == null:
 		state = StateScene.new()
-	state.settings["master_audio"] = enabled
-	AudioManager.set_master_enabled(enabled)
-	if enabled:
-		AudioManager.play_ui("confirm")
+	state.settings[key] = value
+	if title_screen and key == "reduce_motion":
+		title_screen.reduce_motion = bool(value)
+	var audio: Variant = _audio_service()
+	if key == "master_audio":
+		if audio:
+			audio.set_master_enabled(bool(value))
+	if audio and (key != "master_audio" or bool(value)):
+		audio.play_ui("confirm")
 	_persist_title_preferences()
 
 
+func _make_title_setting_row(label_text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size.x = 180
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.theme_type_variation = "AshKicker"
+	row.add_child(label)
+	return row
+
+
+func _make_title_quality_selector() -> OptionButton:
+	var selector := OptionButton.new()
+	for quality_id: String in VISUAL_QUALITY_IDS:
+		selector.add_item(quality_id.to_upper())
+		selector.set_item_metadata(selector.item_count - 1, quality_id)
+	return selector
+
+
+func _select_title_quality(selector: OptionButton, quality_id: String) -> void:
+	var safe_id := quality_id if VISUAL_QUALITY_IDS.has(quality_id) else "high"
+	for index in selector.item_count:
+		if str(selector.get_item_metadata(index)) == safe_id:
+			selector.select(index)
+			return
+
+
+func _title_quality_selected(index: int, selector: OptionButton) -> void:
+	if index < 0 or index >= selector.item_count:
+		return
+	_set_title_setting("visual_quality", str(selector.get_item_metadata(index)))
+
+
+func _title_weather_changed(value: float, value_label: Label) -> void:
+	var density := clampf(value, 0.25, 1.35)
+	value_label.text = _weather_density_text(density)
+	_set_title_setting("weather_density", density)
+
+
+func _weather_density_text(value: float) -> String:
+	return "%d%%" % int(round(value * 100.0))
+
+
 func _persist_title_preferences() -> void:
-	if _state_is_persistable and state and SaveSystem.can_continue():
-		SaveSystem.autosave(state.to_save_data())
+	var saves: Variant = _save_service()
+	if saves and _state_is_persistable and state and saves.can_continue():
+		saves.autosave(state.to_save_data())
 
 
 func _show_memory_of_greyfen() -> void:
-	AudioManager.play_ui("focus")
+	var audio: Variant = _audio_service()
+	if audio:
+		audio.play_ui("focus")
 	var panel := _make_modal("MEMORY OF GREYFEN", "Story notes, authorship, and scope")
 	var box := panel.get_meta("content") as VBoxContainer
 	var text := RichTextLabel.new()
@@ -202,9 +332,11 @@ func _show_message(heading: String, body: String) -> void:
 
 func _show_ending(completed_state: AshGameState) -> void:
 	state = completed_state
-	var ending_saved := SaveSystem.autosave(state.to_save_data())
+	var saves: Variant = _save_service()
+	var ending_saved := bool(saves.autosave(state.to_save_data())) if saves else false
 	_state_is_persistable = ending_saved or _state_is_persistable
-	SaveSystem.set_autosave_enabled(false)
+	if saves:
+		saves.set_autosave_enabled(false)
 	_clear_content()
 
 	var root := Control.new()
@@ -341,5 +473,21 @@ func _clear_content() -> void:
 
 
 func _quit_game() -> void:
-	AudioManager.play_ui("cancel")
+	var audio: Variant = _audio_service()
+	if audio:
+		audio.play_ui("cancel")
 	get_tree().quit()
+
+
+func _save_service() -> Variant:
+	var loop: MainLoop = Engine.get_main_loop()
+	if not loop is SceneTree:
+		return null
+	return (loop as SceneTree).root.get_node_or_null("SaveSystem")
+
+
+func _audio_service() -> Variant:
+	var loop: MainLoop = Engine.get_main_loop()
+	if not loop is SceneTree:
+		return null
+	return (loop as SceneTree).root.get_node_or_null("AudioManager")

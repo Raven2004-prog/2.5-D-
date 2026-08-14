@@ -179,6 +179,9 @@ func _test_save_envelope_remains_compatible() -> void:
 	var saves := SaveSystemScript.new()
 	saves.save_path = TEST_SAVE_PATH
 	saves.reset_save()
+	var legacy_backup_path := TEST_SAVE_PATH + SaveSystemScript.LEGACY_BACKUP_SUFFIX
+	if FileAccess.file_exists(legacy_backup_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(legacy_backup_path))
 	var legacy := _legacy_v1_fixture()
 	_expect(saves.save_game(legacy), "atomic envelope can still store a V1 payload")
 	var loaded_legacy := saves.continue_game()
@@ -187,9 +190,15 @@ func _test_save_envelope_remains_compatible() -> void:
 	_expect(migrated.load_save_data(loaded_legacy), "legacy envelope payload migrates successfully")
 	_expect(saves.save_game(migrated.to_save_data()), "atomic envelope replaces legacy payload with V2")
 	_expect(not FileAccess.file_exists(TEST_SAVE_PATH + ".bak"), "successful migration save leaves no stale backup")
+	_expect(FileAccess.file_exists(legacy_backup_path), "the exact V1 envelope remains as a durable recovery backup")
+	_expect(saves.last_legacy_backup_path == legacy_backup_path, "save system exposes the recovery-backup path")
+	var recovered_v1 := saves.continue_game(legacy_backup_path)
+	_expect(recovered_v1.get("schema_version") == 1, "the recovery backup can restore the original V1 payload")
 	var loaded_v2 := saves.continue_game()
 	_expect(loaded_v2.get("schema_version") == 2, "replacement envelope contains V2 payload")
 	_expect(saves.reset_save(), "migration test save cleans up safely")
+	if FileAccess.file_exists(legacy_backup_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(legacy_backup_path))
 	saves.free()
 
 

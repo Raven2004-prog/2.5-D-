@@ -7,10 +7,13 @@ signal folio_closed
 signal pause_requested
 signal resume_requested
 signal title_requested
-signal setting_changed(key: String, enabled: bool)
+signal setting_changed(key: String, value: Variant)
 
 const AshTheme := preload("res://scripts/ui_theme.gd")
 const PortraitScene := preload("res://scripts/portrait.gd")
+const FOLIO_MAP_PATH := "res://assets/ashen/ui/greyfen_folio_map.png"
+const UI_ORNAMENT_PATH := "res://assets/ashen/ui/ashen_ui_ornament_atlas.png"
+const VISUAL_QUALITY_IDS := ["high", "medium", "low"]
 
 var dialogue_open := false
 var folio_open := false
@@ -30,6 +33,7 @@ var _notification_label: Label
 var _save_label: Label
 
 var _dialogue_panel: PanelContainer
+var _dialogue_ornament: TextureRect
 var _dialogue_portrait: CharacterPortrait
 var _speaker_label: Label
 var _role_label: Label
@@ -47,6 +51,10 @@ var _pause_panel: PanelContainer
 var _pause_motion: CheckBox
 var _pause_flash: CheckBox
 var _pause_audio: CheckBox
+var _pause_quality: OptionButton
+var _pause_dof: CheckBox
+var _pause_weather: HSlider
+var _pause_weather_value: Label
 var _notification_tween: Tween
 
 
@@ -115,10 +123,18 @@ func set_threads(retained: Dictionary, present: Dictionary, resolved: Dictionary
 
 
 func sync_settings(settings: Dictionary) -> void:
+	if _pause_quality:
+		_select_quality(_pause_quality, str(settings.get("visual_quality", "high")))
 	if _pause_motion:
 		_pause_motion.set_pressed_no_signal(bool(settings.get("reduce_motion", false)))
 	if _pause_flash:
 		_pause_flash.set_pressed_no_signal(bool(settings.get("reduce_flash", false)))
+	if _pause_dof:
+		_pause_dof.set_pressed_no_signal(bool(settings.get("depth_of_field", true)))
+	if _pause_weather:
+		var density := clampf(float(settings.get("weather_density", 1.0)), 0.25, 1.35)
+		_pause_weather.set_value_no_signal(density)
+		_update_weather_label(density)
 	if _pause_audio:
 		_pause_audio.set_pressed_no_signal(bool(settings.get("master_audio", true)))
 
@@ -156,6 +172,8 @@ func show_dialogue(id: String, data: Dictionary, choices: Array = []) -> void:
 	_page_index = 0
 	dialogue_open = true
 	_dialogue_panel.visible = true
+	if _dialogue_ornament:
+		_dialogue_ornament.visible = true
 	_condition_panel.visible = false
 	_prompt_panel.visible = false
 	_speaker_label.text = str(data.get("speaker", ""))
@@ -188,6 +206,8 @@ func advance_dialogue() -> void:
 func hide_dialogue() -> void:
 	dialogue_open = false
 	_dialogue_panel.visible = false
+	if _dialogue_ornament:
+		_dialogue_ornament.visible = false
 	_condition_panel.visible = true
 	_dialogue_id = ""
 	_pages = PackedStringArray()
@@ -444,6 +464,21 @@ func _build_dialogue() -> void:
 	_continue_label.theme_type_variation = "AshKicker"
 	column.add_child(_continue_label)
 
+	_dialogue_ornament = TextureRect.new()
+	_dialogue_ornament.name = "AshenDialogueOrnament"
+	_dialogue_ornament.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_dialogue_ornament.offset_left = 22
+	_dialogue_ornament.offset_right = -22
+	_dialogue_ornament.offset_top = -255
+	_dialogue_ornament.offset_bottom = -15
+	_dialogue_ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_dialogue_ornament.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_dialogue_ornament.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	_dialogue_ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dialogue_ornament.texture = _atlas_region(UI_ORNAMENT_PATH, Rect2(18, 15, 1500, 310))
+	_dialogue_ornament.visible = false
+	_root.add_child(_dialogue_ornament)
+
 
 func _build_folio() -> void:
 	_folio_panel = PanelContainer.new()
@@ -455,9 +490,38 @@ func _build_folio() -> void:
 	_folio_panel.theme_type_variation = "AshGlassPanel"
 	_folio_panel.visible = false
 	_root.add_child(_folio_panel)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 18)
+	_folio_panel.add_child(body)
+	var map_column := VBoxContainer.new()
+	map_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_column.size_flags_stretch_ratio = 1.42
+	map_column.add_theme_constant_override("separation", 6)
+	body.add_child(map_column)
+	var map_kicker := Label.new()
+	map_kicker.text = "GREYFEN  ·  THE ROUTES MEMORY KEEPS"
+	map_kicker.theme_type_variation = "AshKicker"
+	map_column.add_child(map_kicker)
+	var map := TextureRect.new()
+	map.name = "GreyfenFolioMap"
+	map.texture = load(FOLIO_MAP_PATH) as Texture2D
+	map.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	map.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	map.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	map.custom_minimum_size = Vector2(420, 260)
+	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_column.add_child(map)
+	var map_hint := Label.new()
+	map_hint.text = "WARD-AMBER: shelter  ·  ASH-WHITE: remembered anomaly"
+	map_hint.theme_type_variation = "AshHint"
+	map_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	map_column.add_child(map_hint)
 	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_stretch_ratio = 0.82
 	column.add_theme_constant_override("separation", 10)
-	_folio_panel.add_child(column)
+	body.add_child(column)
 	_folio_title = Label.new()
 	_folio_title.text = "WHAT THE RAIN COULD NOT TAKE"
 	_folio_title.theme_type_variation = "AshKicker"
@@ -478,15 +542,16 @@ func _build_pause() -> void:
 	_pause_panel = PanelContainer.new()
 	_pause_panel.name = "PausePanel"
 	_pause_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_pause_panel.position = Vector2(-260, -280)
-	_pause_panel.size = Vector2(520, 560)
+	_pause_panel.position = Vector2(-280, -305)
+	_pause_panel.size = Vector2(560, 610)
+	_pause_panel.custom_minimum_size = Vector2(560, 610)
 	_pause_panel.theme_type_variation = "AshGlassPanel"
 	_pause_panel.visible = false
 	_root.add_child(_pause_panel)
 	var box := VBoxContainer.new()
 	box.name = "PauseBox"
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 6)
 	_pause_panel.add_child(box)
 	var kicker := Label.new()
 	kicker.text = "THE RAIN WAITS"
@@ -496,36 +561,69 @@ func _build_pause() -> void:
 	var heading := Label.new()
 	heading.text = "PAUSED"
 	heading.theme_type_variation = "AshTitle"
-	heading.add_theme_font_size_override("font_size", 42)
+	heading.add_theme_font_size_override("font_size", 38)
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(heading)
 	var controls := Label.new()
-	controls.text = "WASD / ARROWS  Move\nSHIFT  Sprint   ·   SPACE  Dodge\nE  Interact   ·   F  Shove   ·   Q  Focus\nTAB  Memory Folio"
+	controls.text = "WASD / ARROWS  Move  ·  SHIFT  Sprint  ·  SPACE  Dodge\nE  Interact  ·  F  Shove  ·  Q  Focus  ·  TAB  Folio"
 	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	controls.theme_type_variation = "AshBody"
+	controls.add_theme_font_size_override("font_size", 15)
 	box.add_child(controls)
 	var settings_heading := Label.new()
-	settings_heading.text = "COMFORT & SOUND"
+	settings_heading.text = "DISPLAY, COMFORT & SOUND"
 	settings_heading.theme_type_variation = "AshKicker"
 	settings_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(settings_heading)
+	var quality_row := _make_pause_setting_row("VISUAL QUALITY")
+	_pause_quality = _make_quality_selector()
+	_pause_quality.name = "VisualQuality"
+	_pause_quality.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pause_quality.item_selected.connect(_pause_quality_selected)
+	quality_row.add_child(_pause_quality)
+	box.add_child(quality_row)
 	_pause_motion = _make_pause_toggle("Reduce rain and camera motion", "reduce_motion")
+	_pause_motion.name = "ReduceMotion"
 	box.add_child(_pause_motion)
 	_pause_flash = _make_pause_toggle("Reduce Return and lightning flashes", "reduce_flash")
+	_pause_flash.name = "ReduceFlash"
 	box.add_child(_pause_flash)
+	_pause_dof = _make_pause_toggle("Depth of field", "depth_of_field")
+	_pause_dof.name = "DepthOfField"
+	box.add_child(_pause_dof)
+	var weather_row := _make_pause_setting_row("WEATHER DENSITY")
+	_pause_weather = HSlider.new()
+	_pause_weather.name = "WeatherDensity"
+	_pause_weather.min_value = 0.25
+	_pause_weather.max_value = 1.35
+	_pause_weather.step = 0.05
+	_pause_weather.value = 1.0
+	_pause_weather.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pause_weather.custom_minimum_size.x = 175
+	_pause_weather.value_changed.connect(_pause_weather_changed)
+	weather_row.add_child(_pause_weather)
+	_pause_weather_value = Label.new()
+	_pause_weather_value.name = "WeatherDensityValue"
+	_pause_weather_value.custom_minimum_size.x = 48
+	_pause_weather_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_pause_weather_value.theme_type_variation = "AshHint"
+	weather_row.add_child(_pause_weather_value)
+	_update_weather_label(_pause_weather.value)
+	box.add_child(weather_row)
 	_pause_audio = _make_pause_toggle("Procedural ambience and interface sound", "master_audio")
+	_pause_audio.name = "MasterAudio"
 	box.add_child(_pause_audio)
 	var resume := Button.new()
 	resume.name = "Resume"
 	resume.text = "RESUME"
 	resume.theme_type_variation = "AshPrimaryButton"
-	resume.custom_minimum_size.y = 48
+	resume.custom_minimum_size.y = 42
 	resume.pressed.connect(_pause_resume)
 	box.add_child(resume)
 	var title := Button.new()
 	title.name = "Title"
 	title.text = "SAVE & RETURN TO TITLE"
-	title.custom_minimum_size.y = 48
+	title.custom_minimum_size.y = 42
 	title.pressed.connect(_pause_title)
 	box.add_child(title)
 	var hint := Label.new()
@@ -556,6 +654,51 @@ func _pause_setting_toggled(enabled: bool, key: String) -> void:
 	setting_changed.emit(key, enabled)
 
 
+func _make_pause_setting_row(label_text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size.x = 166
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.theme_type_variation = "AshKicker"
+	row.add_child(label)
+	return row
+
+
+func _make_quality_selector() -> OptionButton:
+	var selector := OptionButton.new()
+	for quality_id: String in VISUAL_QUALITY_IDS:
+		selector.add_item(quality_id.to_upper())
+		selector.set_item_metadata(selector.item_count - 1, quality_id)
+	return selector
+
+
+func _select_quality(selector: OptionButton, quality_id: String) -> void:
+	var safe_id := quality_id if VISUAL_QUALITY_IDS.has(quality_id) else "high"
+	for index in selector.item_count:
+		if str(selector.get_item_metadata(index)) == safe_id:
+			selector.select(index)
+			return
+
+
+func _pause_quality_selected(index: int) -> void:
+	if not _pause_quality or index < 0 or index >= _pause_quality.item_count:
+		return
+	setting_changed.emit("visual_quality", str(_pause_quality.get_item_metadata(index)))
+
+
+func _pause_weather_changed(value: float) -> void:
+	var density := clampf(value, 0.25, 1.35)
+	_update_weather_label(density)
+	setting_changed.emit("weather_density", density)
+
+
+func _update_weather_label(value: float) -> void:
+	if _pause_weather_value:
+		_pause_weather_value.text = "%d%%" % int(round(value * 100.0))
+
+
 func _make_bar(label_text: String, fill_color: Color) -> ProgressBar:
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(188, 18)
@@ -570,3 +713,15 @@ func _make_bar(label_text: String, fill_color: Color) -> ProgressBar:
 	bar.add_theme_stylebox_override("background", background)
 	bar.add_theme_stylebox_override("fill", fill)
 	return bar
+
+
+func _atlas_region(path: String, region: Rect2) -> AtlasTexture:
+	if not ResourceLoader.exists(path):
+		return null
+	var atlas := load(path) as Texture2D
+	if atlas == null:
+		return null
+	var texture := AtlasTexture.new()
+	texture.atlas = atlas
+	texture.region = region
+	return texture

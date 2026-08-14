@@ -75,6 +75,16 @@ func _process(delta: float) -> void:
 func _exit_tree() -> void:
 	unbind_weather_source()
 	stop()
+	# AudioServer can hold a playback reference for another mix tick after a
+	# player stops. Detach streams explicitly so runtime scene swaps and headless
+	# tests do not retain generated WAV resources past this service's lifetime.
+	for player: AudioStreamPlayer in [_rain_player, _wind_player, _ward_bed_player, _one_shot_player]:
+		if is_instance_valid(player):
+			player.stream = null
+	for raw_emitter: Variant in _landmark_emitters.values():
+		var emitter := raw_emitter as AudioStreamPlayer3D
+		if is_instance_valid(emitter):
+			emitter.stream = null
 	_landmark_emitters.clear()
 	_loop_streams.clear()
 	_one_shot_streams.clear()
@@ -92,13 +102,13 @@ func get_target() -> Node3D:
 
 
 func apply_settings(settings: Dictionary) -> void:
-	var requested_master := settings.get("master_audio", settings.get("audio_enabled", true))
-	var requested_gain := settings.get("master_volume", settings.get("audio_volume", 1.0))
+	var requested_master: bool = bool(settings.get("master_audio", settings.get("audio_enabled", true)))
+	var requested_gain: float = float(settings.get("master_volume", settings.get("audio_volume", 1.0)))
 	weather_density = clampf(float(settings.get("weather_density", settings.get("rain_intensity", 1.0))), 0.0, 1.35)
 	reduced_stimulation = bool(settings.get("reduce_flash", settings.get("reduced_stimulation", false)))
-	set_master_gain(float(requested_gain))
+	set_master_gain(requested_gain)
 	apply_quality(str(settings.get("visual_quality", settings.get("quality", quality))))
-	set_master_enabled(bool(requested_master))
+	set_master_enabled(requested_master)
 
 
 func apply_quality(value: String) -> bool:

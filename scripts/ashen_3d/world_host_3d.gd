@@ -63,6 +63,13 @@ const WATER_ANCHORS := [
 	&"water_gate_wheel", &"tunnel_tracks", &"water_patrol_a", &"water_patrol_b", &"shortcut_drain",
 ]
 
+# Godot's glTF importer strips `_wheel` as an import suffix from this Blender
+# empty. Restore the authored semantic ID at the import boundary so gameplay and
+# save code never need to depend on the tool-specific spelling.
+const IMPORTED_ANCHOR_ID_RENAMES := {
+	&"water_gate": &"water_gate_wheel",
+}
+
 @export var bake_navigation_on_ready := true
 @export var threaded_navigation_bake := true
 
@@ -303,13 +310,16 @@ func _harvest_imported_anchors(node: Node) -> void:
 
 func _anchor_id_from_node_name(node_name: StringName) -> StringName:
 	var text := str(node_name)
+	var anchor_id := &""
 	if text.begins_with("anchor__"):
-		return StringName(text.trim_prefix("anchor__").strip_edges())
+		anchor_id = StringName(text.trim_prefix("anchor__").strip_edges())
 	# Some glTF naming revisions collapse repeated underscores. Accept that import
 	# spelling without changing the semantic ID produced for the registry.
-	if text.begins_with("anchor_"):
-		return StringName(text.trim_prefix("anchor_").strip_edges())
-	return &""
+	elif text.begins_with("anchor_"):
+		anchor_id = StringName(text.trim_prefix("anchor_").strip_edges())
+	if IMPORTED_ANCHOR_ID_RENAMES.has(anchor_id):
+		return IMPORTED_ANCHOR_ID_RENAMES[anchor_id]
+	return anchor_id
 
 
 func _create_registry_marker(id: StringName, source_transform: Transform3D) -> Marker3D:

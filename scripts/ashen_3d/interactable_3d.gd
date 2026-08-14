@@ -39,19 +39,70 @@ func _ready() -> void:
 func set_available(value: bool) -> void:
 	available = value
 	if is_instance_valid(interaction_area):
-		interaction_area.monitoring = value
-		interaction_area.monitorable = value
+		# Availability is refreshed every frame from the story director. Avoid
+		# needlessly re-registering an unchanged Area3D with the physics server,
+		# which can invalidate its overlap cache for the current frame.
+		if interaction_area.monitoring != value:
+			interaction_area.monitoring = value
+		if interaction_area.monitorable != value:
+			interaction_area.monitorable = value
 	if is_instance_valid(glint):
 		glint.visible = value
 
 
 func is_player_inside(player: AshenPlayerActor3D) -> bool:
-	return (
-		available
-		and is_instance_valid(player)
-		and is_instance_valid(interaction_area)
-		and interaction_area.overlaps_body(player)
-	)
+	if not available or not is_instance_valid(player) or not is_instance_valid(interaction_area):
+		return false
+	var area_shape := interaction_area.get_node_or_null("InteractionRadius") as CollisionShape3D
+	var player_shape := player.get_node_or_null("GroundCollider") as CollisionShape3D
+	if (
+		is_instance_valid(area_shape)
+		and not area_shape.disabled
+		and area_shape.shape is SphereShape3D
+		and is_instance_valid(player_shape)
+		and not player_shape.disabled
+		and player_shape.shape is CapsuleShape3D
+	):
+		# Area3D.overlaps_body() is frame-cached and can be one physics step stale
+		# after a checkpoint/scene teleport. Test the same authored shapes directly
+		# so prompts are deterministic without replacing the real Area3D contract.
+		return _sphere_overlaps_player_capsule(
+			area_shape,
+			area_shape.shape as SphereShape3D,
+			player_shape,
+			player_shape.shape as CapsuleShape3D
+		)
+	return interaction_area.overlaps_body(player)
+
+
+func _sphere_overlaps_player_capsule(
+		sphere_node: CollisionShape3D,
+		sphere: SphereShape3D,
+		capsule_node: CollisionShape3D,
+		capsule: CapsuleShape3D
+	) -> bool:
+	var capsule_half_segment := maxf(capsule.height * 0.5 - capsule.radius, 0.0)
+	var capsule_start_world := capsule_node.global_transform * (Vector3.DOWN * capsule_half_segment)
+	var capsule_end_world := capsule_node.global_transform * (Vector3.UP * capsule_half_segment)
+	var sphere_inverse := sphere_node.global_transform.affine_inverse()
+	var capsule_start_local := sphere_inverse * capsule_start_world
+	var capsule_end_local := sphere_inverse * capsule_end_world
+
+	var sphere_scale := sphere_node.global_basis.get_scale().abs()
+	var capsule_scale := capsule_node.global_basis.get_scale().abs()
+	var minimum_sphere_scale := maxf(minf(sphere_scale.x, minf(sphere_scale.y, sphere_scale.z)), 0.0001)
+	var maximum_capsule_scale := maxf(capsule_scale.x, maxf(capsule_scale.y, capsule_scale.z))
+	var combined_radius := sphere.radius + capsule.radius * maximum_capsule_scale / minimum_sphere_scale
+	return _point_segment_distance_squared(Vector3.ZERO, capsule_start_local, capsule_end_local) <= combined_radius * combined_radius
+
+
+func _point_segment_distance_squared(point: Vector3, start: Vector3, end: Vector3) -> float:
+	var segment := end - start
+	var segment_length_squared := segment.length_squared()
+	if segment_length_squared <= 0.000001:
+		return point.distance_squared_to(start)
+	var weight := clampf((point - start).dot(segment) / segment_length_squared, 0.0, 1.0)
+	return point.distance_squared_to(start + segment * weight)
 
 
 func interaction_point() -> Vector3:

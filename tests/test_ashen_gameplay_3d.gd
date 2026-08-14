@@ -48,7 +48,6 @@ func _run() -> void:
 
 
 func _test_world_contract(world, state) -> void:
-	print("[ashen-gameplay-3d] debug lights=%d player=%s arrival=%s" % [world._ward_lights.size(), world.player.global_position, world.world_host.landmark_registry.get_landmark_position(&"evan_arrival")])
 	_check(world.world_host != null and world.world_host.validation_errors.is_empty(), "authored five-district host builds without validation errors")
 	_check(world.player is CharacterBody3D, "Evan is a CharacterBody3D")
 	_check(world.player.collision_layer == CollisionLayers.PLAYER, "Evan uses the locked Player layer")
@@ -60,7 +59,19 @@ func _test_world_contract(world, state) -> void:
 	_check(world._defense_volume.collision_layer == CollisionLayers.TRAVERSAL_TRIGGER, "granary finale uses the authored traversal volume")
 	_check(world._ward_lights.size() == 6, "six authored ward lights establish refuge landmarks")
 	var arrival: Marker3D = world.world_host.landmark_registry.get_landmark(&"evan_arrival")
-	_check(arrival != null and world.player.global_position.distance_to(arrival.global_position) < 0.2, "new game begins at the semantic arrival anchor")
+	var arrival_horizontal_distance := INF
+	var arrival_vertical_distance := INF
+	if arrival != null:
+		var arrival_offset: Vector3 = world.player.global_position - arrival.global_position
+		arrival_horizontal_distance = Vector2(arrival_offset.x, arrival_offset.z).length()
+		arrival_vertical_distance = absf(arrival_offset.y)
+	_check(
+		arrival != null
+		and arrival_horizontal_distance < 0.08
+		and arrival_vertical_distance < 0.35
+		and world.player.global_position.y <= arrival.global_position.y + 0.08,
+		"new game grounds Evan below the semantic arrival marker without horizontal drift"
+	)
 	_check(state.get_spatial_checkpoint().get("anchor_id") == "evan_arrival", "new game retains the semantic V2 checkpoint")
 
 
@@ -68,13 +79,22 @@ func _test_live_interaction(world, state) -> void:
 	await _finish_dialogue(world.story_director, "intro_earth")
 	await _finish_dialogue(world.story_director, "arrival")
 	var lysa := world.npc_targets[&"lysa"] as AshenInteractable3D
+	# The south side of Lysa's post is behind a real imported wall. Confirm that
+	# authored line-of-sight remains authoritative even within the Area3D radius.
 	world.player.global_position = lysa.global_position + Vector3(0.0, 0.08, 1.15)
 	world.player.facing = Vector3.FORWARD
 	await physics_frame
 	await physics_frame
 	world._update_interaction_candidate()
-	print("[ashen-gameplay-3d] debug lysa available=%s overlap=%s player=%s lysa=%s nearest=%s" % [lysa.available, lysa.interaction_area.overlaps_body(world.player), world.player.global_position, lysa.global_position, world._nearest_interactable])
-	_check(world._nearest_interactable == lysa, "Area3D, facing priority and clear-line query select Lysa")
+	_check(world._nearest_interactable != lysa, "the imported wall still blocks interaction line-of-sight")
+
+	world.player.global_position = lysa.global_position + Vector3(0.0, 0.08, -1.15)
+	world.player.facing = Vector3.BACK
+	await physics_frame
+	await physics_frame
+	world._update_interaction_candidate()
+	_check(lysa.is_player_inside(world.player), "authored Area3D containment survives a checkpoint-style teleport")
+	_check(world._nearest_interactable == lysa, "Area3D, facing priority and clear-line query select Lysa from the reachable side")
 	world._on_player_interact_requested()
 	_check(world.ui.dialogue_open and world.ui._dialogue_id == "lysa_token", "3D NPC interaction enters the real four-pass story")
 	_check(not state.has_item("token"), "dialogue consequence remains gated until its authored completion")
@@ -87,7 +107,6 @@ func _test_nonlethal_combat(world) -> void:
 	agent.global_position = world.player.global_position + world.player.facing * 0.8
 	agent.resolve = 30.0
 	world._on_player_shove(world.player.get_shove_origin(), world.player.facing)
-	print("[ashen-gameplay-3d] debug shove state=%s resolve=%s player=%s agent=%s" % [agent.state, agent.resolve, world.player.global_position, agent.global_position])
 	_check(agent.state == AshenEnemyAgent3D.State.SURRENDERED, "forward unobstructed shove resolves an agent non-lethally")
 	_check(agent.collision_layer == 0, "surrendered agents no longer crowd-block the player")
 
@@ -112,7 +131,7 @@ func _test_finale_volume(world, state) -> void:
 	world.player.global_position = world._defense_volume.global_position + Vector3.UP * 0.1
 	await physics_frame
 	var before := float(state.current_line["finale_time"])
-	print("[ashen-gameplay-3d] debug defense overlap=%s player=%s volume=%s stage=%s" % [world._defense_volume.overlaps_body(world.player), world.player.global_position, world._defense_volume.global_position, world.story_director.get_stage()])
+	_check(world._is_player_inside_defense_volume(), "authored defense containment is deterministic at the volume center")
 	world._tick_finale_3d(1.0)
 	_check(float(state.current_line["finale_time"]) < before, "finale clock advances inside the authored granary volume")
 	world.player.global_position += Vector3(40.0, 0.0, 0.0)

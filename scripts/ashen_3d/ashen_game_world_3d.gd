@@ -12,6 +12,7 @@ const HostScript := preload("res://scripts/ashen_3d/world_host_3d.gd")
 const PlayerScript := preload("res://scripts/ashen_3d/player_actor_3d.gd")
 const CameraScript := preload("res://scripts/ashen_3d/camera_rig_3d.gd")
 const WeatherScript := preload("res://scripts/ashen_3d/weather_3d.gd")
+const SoundscapeScript := preload("res://scripts/ashen_3d/soundscape_3d.gd")
 const DirectorScript := preload("res://scripts/ashen_3d/story_director_adapter_3d.gd")
 const EnemyScript := preload("res://scripts/ashen_3d/enemy_agent_3d.gd")
 const BillboardScript := preload("res://scripts/ashen_3d/billboard_actor_3d.gd")
@@ -82,12 +83,19 @@ const WARD_LIGHT_ANCHORS := [
 	&"stage_granary", &"water_gate_wheel",
 ]
 
+# Blender's glTF empty importer treats `_wheel` as a node-type suffix in the
+# current diorama revision, so this one authored anchor arrives shortened.
+const IMPORTED_LANDMARK_ALIASES := {
+	&"water_gate_wheel": &"water_gate",
+}
+
 var game_state: AshGameState
 var ui: GameUI
 var world_host: AshenWorldHost3D
 var player: AshenPlayerActor3D
 var camera_rig: AshenCameraRig3D
 var weather: AshenWeather3D
+var soundscape: AshenSoundscape3D
 var story_director: AshenStoryDirectorAdapter3D
 
 var npc_targets: Dictionary = {}
@@ -194,6 +202,12 @@ func _build_spatial_world() -> void:
 	weather.set_target(player)
 	weather.set_lightning_light(world_host.directional_light)
 
+	soundscape = SoundscapeScript.new()
+	soundscape.name = "AshenSoundscape"
+	add_child(soundscape)
+	soundscape.set_target(player)
+	soundscape.bind_weather_source(weather)
+
 	_build_interactables()
 	_build_defense_volume()
 	_build_agents()
@@ -221,7 +235,7 @@ func _build_interactables() -> void:
 		var target := InteractableScript.new()
 		target.name = "NPC_%s" % npc_id
 		target.configure(npc_id, InteractableScript.Kind.NPC, str(NPC_LABELS[npc_id]), "TALK TO %s" % str(NPC_LABELS[npc_id]).to_upper())
-		var marker := world_host.landmark_registry.get_landmark(NPC_ANCHORS[npc_id])
+		var marker := _resolve_landmark(NPC_ANCHORS[npc_id])
 		if marker:
 			target.global_transform = marker.global_transform
 		add_child(target)
@@ -235,7 +249,7 @@ func _build_interactables() -> void:
 		var target := InteractableScript.new()
 		target.name = "Hotspot_%s" % hotspot_id
 		target.configure(hotspot_id, InteractableScript.Kind.HOTSPOT, str(hotspot_id).capitalize(), HOTSPOT_PROMPTS[hotspot_id])
-		var marker := world_host.landmark_registry.get_landmark(HOTSPOT_ANCHORS[hotspot_id])
+		var marker := _resolve_landmark(HOTSPOT_ANCHORS[hotspot_id])
 		if marker:
 			target.global_transform = marker.global_transform
 		add_child(target)
@@ -268,7 +282,7 @@ func _build_defense_volume() -> void:
 	_defense_volume = Area3D.new()
 	_defense_volume.name = "GranaryDefenseVolume"
 	CollisionLayers.configure_traversal_trigger(_defense_volume)
-	var marker := world_host.landmark_registry.get_landmark(&"granary_defense")
+	var marker := _resolve_landmark(&"granary_defense")
 	if marker:
 		_defense_volume.global_transform = marker.global_transform
 	var shape_node := CollisionShape3D.new()
@@ -283,7 +297,7 @@ func _build_defense_volume() -> void:
 
 func _build_ward_lights() -> void:
 	for anchor_id: StringName in WARD_LIGHT_ANCHORS:
-		var marker := world_host.landmark_registry.get_landmark(anchor_id)
+		var marker := _resolve_landmark(anchor_id)
 		if marker == null:
 			continue
 		var light := OmniLight3D.new()
@@ -296,6 +310,8 @@ func _build_ward_lights() -> void:
 		light.position = marker.global_position + Vector3.UP * 2.35
 		add_child(light)
 		_ward_lights.append(light)
+		if is_instance_valid(soundscape):
+			soundscape.register_ward_landmark(anchor_id, marker.global_position + Vector3.UP * 1.35)
 
 
 func _on_director_ready(ready_ui: GameUI) -> void:
@@ -325,6 +341,8 @@ func _on_stage_changed(stage: String, checkpoint: Dictionary) -> void:
 	_refresh_interactable_availability()
 	if stage == "finale_defense":
 		weather.set_finale_active(true)
+		if is_instance_valid(soundscape):
+			soundscape.play_finale_cue(0.86)
 		for agent in agents:
 			if agent.state != AshenEnemyAgent3D.State.SURRENDERED:
 				agent.last_known_position = player.global_position
@@ -336,6 +354,9 @@ func _on_stage_changed(stage: String, checkpoint: Dictionary) -> void:
 			agent.state = AshenEnemyAgent3D.State.SURRENDERED
 			agent.velocity = Vector3.ZERO
 	elif stage.begins_with("return_"):
+		if is_instance_valid(soundscape):
+			var return_intensity := 0.72 + minf(float(game_state.retained.get("soul_scars", 0)) * 0.08, 0.24)
+			soundscape.play_return_cue(return_intensity)
 		for agent in agents:
 			agent.reset_agent()
 	if not checkpoint.is_empty():
@@ -420,7 +441,7 @@ func _on_player_defeated(_cause: String) -> void:
 func _tick_finale_3d(delta: float) -> void:
 	if ui and (ui.dialogue_open or ui.folio_open) or _rescue_in_progress:
 		return
-	var inside := is_instance_valid(_defense_volume) and _defense_volume.overlaps_body(player)
+	var inside := _is_player_inside_defense_volume()
 	if inside != _was_in_defense_volume and ui:
 		if inside:
 			ui.notify("The granary line holds again.", Color("85c2b2"), 2.0)
@@ -429,6 +450,81 @@ func _tick_finale_3d(delta: float) -> void:
 	_was_in_defense_volume = inside
 	if inside:
 		story_director.tick_finale(delta)
+
+
+func _is_player_inside_defense_volume() -> bool:
+	if not is_instance_valid(_defense_volume) or not is_instance_valid(player):
+		return false
+	var boundary := _defense_volume.get_node_or_null("AuthoredDefenseBoundary") as CollisionShape3D
+	var player_shape := player.get_node_or_null("GroundCollider") as CollisionShape3D
+	if (
+		is_instance_valid(boundary)
+		and not boundary.disabled
+		and boundary.shape is BoxShape3D
+		and is_instance_valid(player_shape)
+		and not player_shape.disabled
+		and player_shape.shape is CapsuleShape3D
+	):
+		# The authored box is authoritative. Area3D overlap lists are frame-cached,
+		# so a teleport can otherwise report the previous side of the boundary for
+		# one tick and incorrectly advance or pause the finale.
+		return _box_overlaps_player_capsule(
+			boundary,
+			boundary.shape as BoxShape3D,
+			player_shape,
+			player_shape.shape as CapsuleShape3D
+		)
+	return _defense_volume.overlaps_body(player)
+
+
+func _box_overlaps_player_capsule(
+		box_node: CollisionShape3D,
+		box: BoxShape3D,
+		capsule_node: CollisionShape3D,
+		capsule: CapsuleShape3D
+	) -> bool:
+	var capsule_half_segment := maxf(capsule.height * 0.5 - capsule.radius, 0.0)
+	var capsule_start_world := capsule_node.global_transform * (Vector3.DOWN * capsule_half_segment)
+	var capsule_end_world := capsule_node.global_transform * (Vector3.UP * capsule_half_segment)
+	var box_inverse := box_node.global_transform.affine_inverse()
+	var capsule_start_local := box_inverse * capsule_start_world
+	var capsule_end_local := box_inverse * capsule_end_world
+
+	var box_scale := box_node.global_basis.get_scale().abs()
+	var capsule_scale := capsule_node.global_basis.get_scale().abs()
+	var minimum_box_scale := maxf(minf(box_scale.x, minf(box_scale.y, box_scale.z)), 0.0001)
+	var maximum_capsule_scale := maxf(capsule_scale.x, maxf(capsule_scale.y, capsule_scale.z))
+	var local_capsule_radius := capsule.radius * maximum_capsule_scale / minimum_box_scale
+	var half_extents := box.size * 0.5
+	return _segment_box_distance_squared(capsule_start_local, capsule_end_local, half_extents) <= local_capsule_radius * local_capsule_radius
+
+
+func _segment_box_distance_squared(start: Vector3, end: Vector3, half_extents: Vector3) -> float:
+	# Distance-to-box along a segment is convex. A short fixed ternary search gives
+	# deterministic capsule-vs-box containment even for rotated authored volumes.
+	var lower := 0.0
+	var upper := 1.0
+	for _iteration in range(24):
+		var first := lower + (upper - lower) / 3.0
+		var second := upper - (upper - lower) / 3.0
+		if _point_box_distance_squared(start.lerp(end, first), half_extents) <= _point_box_distance_squared(start.lerp(end, second), half_extents):
+			upper = second
+		else:
+			lower = first
+	var weight := (lower + upper) * 0.5
+	return minf(
+		_point_box_distance_squared(start.lerp(end, weight), half_extents),
+		minf(_point_box_distance_squared(start, half_extents), _point_box_distance_squared(end, half_extents))
+	)
+
+
+func _point_box_distance_squared(point: Vector3, half_extents: Vector3) -> float:
+	var outside := Vector3(
+		maxf(absf(point.x) - half_extents.x, 0.0),
+		maxf(absf(point.y) - half_extents.y, 0.0),
+		maxf(absf(point.z) - half_extents.z, 0.0)
+	)
+	return outside.length_squared()
 
 
 func _refresh_interactable_availability() -> void:
@@ -512,7 +608,7 @@ func _place_player_from_checkpoint(checkpoint: Dictionary, snap_camera: bool) ->
 	if not is_instance_valid(player) or not is_instance_valid(world_host):
 		return
 	var anchor_id := StringName(str(checkpoint.get("anchor_id", "evan_arrival")))
-	var marker := world_host.landmark_registry.get_landmark(anchor_id)
+	var marker := _resolve_landmark(anchor_id)
 	var destination := marker.global_position if marker else Vector3.ZERO
 	var saved: Variant = checkpoint.get("position", [])
 	if saved is Array and saved.size() == 3:
@@ -526,6 +622,15 @@ func _place_player_from_checkpoint(checkpoint: Dictionary, snap_camera: bool) ->
 	player.facing = _id_to_facing(str(checkpoint.get("facing", "south")))
 	if snap_camera and is_instance_valid(camera_rig):
 		camera_rig.snap_to_target()
+
+
+func _resolve_landmark(anchor_id: StringName) -> Marker3D:
+	if not is_instance_valid(world_host) or not is_instance_valid(world_host.landmark_registry):
+		return null
+	var marker := world_host.landmark_registry.get_landmark(anchor_id)
+	if marker == null and IMPORTED_LANDMARK_ALIASES.has(anchor_id):
+		marker = world_host.landmark_registry.get_landmark(IMPORTED_LANDMARK_ALIASES[anchor_id])
+	return marker
 
 
 func _saved_agent_state(states: Dictionary, id: StringName) -> Dictionary:
@@ -547,6 +652,8 @@ func _apply_visual_settings() -> void:
 		return
 	camera_rig.set_reduced_motion(bool(game_state.settings.get("reduce_motion", false)))
 	weather.apply_settings(game_state.settings)
+	if is_instance_valid(soundscape):
+		soundscape.apply_settings(game_state.settings)
 	var quality := str(game_state.settings.get("visual_quality", "high"))
 	var shadow_count := 6 if quality in ["high", "ultra"] else (3 if quality == "medium" else 1)
 	for index in range(_ward_lights.size()):
