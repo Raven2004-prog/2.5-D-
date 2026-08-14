@@ -6,9 +6,11 @@ You play Evan Hale, an anxious nineteen-year-old pulled from Earth into the rain
 
 ## Play
 
-Double-click **`PLAY_ASH_AT_GREYFEN.bat`** for the simplest launch.
+Double-click **`builds/windows/Ash Witness - The Same Rain.exe`** for the standalone Windows build. Keep the companion `.pck` file in the same folder as the `.exe`.
 
-Run `Godot_v4.7.1-stable_win64.exe/Godot_v4.7.1-stable_win64.exe`, import this folder, and press **F6/F5**, or launch from PowerShell:
+You can also double-click **`PLAY_ASH_AT_GREYFEN.bat`**. It now prefers the standalone build and falls back to the bundled Godot runtime when a build is not present.
+
+For development, run `Godot_v4.7.1-stable_win64.exe/Godot_v4.7.1-stable_win64.exe`, import this folder, and press **F6/F5**, or launch from PowerShell:
 
 ```powershell
 & '..\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64.exe' --path .
